@@ -27,6 +27,7 @@ function rand<T>(a: T[]): T {
 }
 
 let sharedEnds = 0;
+let midMoveBridges = 0;
 
 function check(room: RoomState) {
   const positions = room.players.map((p) => p.pos);
@@ -75,6 +76,11 @@ function act(room: RoomState): RoomState {
       return takeCaveItem(room, player.id, -1);
     }
   }
+  const river = neighbors4(room.size, player.pos).find((c) => room.cells[c].t === "river");
+  if (river !== undefined && Math.random() < 0.15 && !room.players.some((p) => p.id !== player.id && p.pos === player.pos)) {
+    midMoveBridges++;
+    return buildBridge(room, player.id, river);
+  }
   const options = legalSteps(room, player, turn);
   if (!options.length) return endMove(room, player.id, false);
   return step(room, player.id, rand(options));
@@ -101,4 +107,4 @@ for (let g = 0; g < games; g++) {
   const key = `${room.settings.mode}/${room.winReason}`;
   reasons[key] = (reasons[key] ?? 0) + 1;
 }
-console.log(`${games} games OK in ${Date.now() - t0}ms, avg ${(totalTurns / games).toFixed(1)} sets, shared resting cells: ${sharedEnds}`, reasons);
+console.log(`${games} games OK in ${Date.now() - t0}ms, avg ${(totalTurns / games).toFixed(1)} sets, shared resting cells: ${sharedEnds}, mid-move bridges: ${midMoveBridges}`, reasons);

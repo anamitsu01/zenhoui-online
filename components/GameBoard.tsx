@@ -9,6 +9,7 @@ import type { ItemKind, Player, PublicEvent, RoomState, TurnState } from "@/lib/
 import { colorName, MAX_ITEMS } from "@/lib/types";
 import { EventCutIns, MuteToggle, shakeCount, SoundDirector } from "./BoardEffects";
 import CaveIcon from "./CaveIcon";
+import ConfirmDialog from "./ConfirmDialog";
 import MapGrid, { type HighlightKind } from "./MapGrid";
 
 export type Act = <E extends keyof ClientToServerEvents>(
@@ -17,7 +18,7 @@ export type Act = <E extends keyof ClientToServerEvents>(
 ) => Promise<string | null>;
 
 /** What a click on the map currently means (besides stepping). */
-type Targeting = { kind: "item"; index: number } | { kind: "bridge" } | null;
+type Targeting = { kind: "item"; index: number } | null;
 
 /**
  * Turns a tap anywhere on the board into a one-cell step: a tap on the line
@@ -67,11 +68,22 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
     [room, me, turn, myTurn]
   );
 
+  // Bridges: tap a river next to your piece — at the start of your turn (costs
+  // this turn) or mid-move (ends the move and costs your next turn).
+  const [bridgeAsk, setBridgeAsk] = useState<{ cell: number; midMove: boolean } | null>(null);
+  const bridgeStage = !myTurn || me.cave || !turn ? null : turn.stage === "start" && !targeting ? "start" : turn.stage === "move" ? "move" : null;
+  const standingOnOther = room.players.some((p) => p.id !== me.id && p.pos === me.pos);
+  const bridgeRivers = useMemo(
+    () =>
+      bridgeStage && !(bridgeStage === "move" && standingOnOther)
+        ? neighbors4(room.size, me.pos).filter((c) => room.cells[c].t === "river")
+        : [],
+    [bridgeStage, standingOnOther, room.size, room.cells, me.pos]
+  );
+
   const highlights = useMemo(() => {
     const map = new Map<number, HighlightKind>();
-    if (activeTargeting?.kind === "bridge") {
-      for (const c of neighbors4(room.size, me.pos)) if (room.cells[c].t === "river") map.set(c, "target");
-    } else if (activeTargeting?.kind === "item") {
+    if (activeTargeting?.kind === "item") {
       const def = ITEM_BY_ID[me.items[activeTargeting.index]];
       if (def?.target === "cell") room.cells.forEach((_, i) => map.set(i, "any"));
       if (def?.target === "ownCell") {
@@ -96,15 +108,15 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
         }
       }
     }
+    if (!activeTargeting) for (const c of bridgeRivers) map.set(c, "target");
     return map;
-  }, [activeTargeting, steps, room, me]);
+  }, [activeTargeting, steps, room, me, bridgeRivers]);
 
   const onCellClick = useCallback(
     (cell: number) => {
       if (busy) return;
-      if (activeTargeting?.kind === "bridge") {
-        setTargeting(null);
-        run(act("game:bridge", { cell }));
+      if (!activeTargeting && bridgeRivers.includes(cell)) {
+        setBridgeAsk({ cell, midMove: turn?.stage === "move" });
       } else if (activeTargeting?.kind === "item") {
         setTargeting(null);
         run(act("game:useItem", { index: activeTargeting.index, target: cell }));
@@ -113,7 +125,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
         if (target !== null) run(act("game:step", { cell: target }));
       }
     },
-    [busy, activeTargeting, steps, run, act, room.size, me.pos]
+    [busy, activeTargeting, steps, run, act, room.size, me.pos, bridgeRivers, turn?.stage]
   );
 
   // Arrow keys / WASD walk the piece.
@@ -222,6 +234,23 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       </aside>
 
       <SetResultBanner room={room} />
+      {bridgeAsk && (
+        <ConfirmDialog
+          title="🌉 ここに橋を架けますか?"
+          message={
+            bridgeAsk.midMove
+              ? "移動はここで終わり、次のあなたのターンは1回休みになります。橋は誰でも通れます。"
+              : "この手番はここで終わります(サイコロは振りません)。橋は誰でも通れます。"
+          }
+          confirmLabel="橋を架ける"
+          onCancel={() => setBridgeAsk(null)}
+          onConfirm={() => {
+            const { cell } = bridgeAsk;
+            setBridgeAsk(null);
+            run(act("game:bridge", { cell }));
+          }}
+        />
+      )}
       <SoundDirector room={room} viewerId={viewerId} />
       <EventCutIns room={room} viewerId={viewerId} />
       <ItemPickups items={me.items} />
@@ -351,7 +380,6 @@ function ActionPanel({
         <ModChips mods={turn.mods} />
         {targeting ? (
           <div className="flex flex-col items-center gap-2">
-            {targeting.kind === "bridge" && <p className="text-sm">橋を架ける川を選んでください(手番は終了します)</p>}
             {pendingItem?.target === "enemy" ? (
               <>
                 <p className="text-sm">{pendingItem.icon} {pendingItem.name}: 対象を選んでください</p>
@@ -387,11 +415,7 @@ function ActionPanel({
             <PrimaryButton disabled={busy} onClick={() => run(act("game:roll", {}))}>
               🎲 サイコロを振る
             </PrimaryButton>
-            {nearRiver && (
-              <SecondaryButton disabled={busy} onClick={() => setTargeting({ kind: "bridge" })}>
-                🌉 橋を架ける(手番終了)
-              </SecondaryButton>
-            )}
+            {nearRiver && <BridgeHint>隣の光っている川をタップすると橋を架けられます(この手番は終了)</BridgeHint>}
           </div>
         )}
         {!targeting && me.items.length > 0 && (
@@ -461,6 +485,9 @@ function ActionPanel({
       </div>
       <ModChips mods={turn.mods} />
       <p className="w-full text-xs text-white/45 sm:w-auto">進みたい方向の点線上をタップ(矢印キー・WASDでも移動)</p>
+      {nearRiver && !room.players.some((p) => p.id !== me.id && p.pos === me.pos) && (
+        <BridgeHint>隣の光っている川をタップすると橋を架けられます(移動はここまで・次のターンは1回休み)</BridgeHint>
+      )}
       {onCave && (
         <SecondaryButton disabled={busy} onClick={() => run(act("game:endMove", { enterCave: true }))}>
           <CaveIcon /> ここで洞窟に入る
@@ -473,6 +500,10 @@ function ActionPanel({
       )}
     </div>
   );
+}
+
+function BridgeHint({ children }: { children: React.ReactNode }) {
+  return <p className="w-full rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-xs text-sky-200">🌉 {children}</p>;
 }
 
 function ModChips({ mods }: { mods: TurnState["mods"] }) {
@@ -680,6 +711,7 @@ function PlayerList({ room, me, actorId }: { room: RoomState; me: Player; actorI
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-white/50">
                 {p.cave && <span><CaveIcon /> 洞窟中({p.cave.total}/{room.settings.caveThreshold})</span>}
+                {p.resting && <span className="text-sky-300">💤 次は1回休み</span>}
                 {ally
                   ? p.items.map((it, k) => (
                       <span key={k} title={`${ITEM_BY_ID[it].name}: ${ITEM_BY_ID[it].description}`}>
@@ -719,7 +751,9 @@ function eventText(room: RoomState, e: PublicEvent): string {
     case "caveExit":
       return `${name(e.playerId)}が洞窟から脱出!(残り${e.extra}マス)`;
     case "bridge":
-      return `${name(e.playerId)}が🌉橋を架けた`;
+      return `${name(e.playerId)}が🌉橋を架けた${e.rest ? "(次のターンは1回休み)" : ""}`;
+    case "rest":
+      return `${name(e.playerId)}は1回休み💤`;
     case "flagFound":
       return `${name(e.playerId)}が🚩フラッグを発見!(全員に公開)`;
     case "enclose":

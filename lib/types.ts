@@ -41,6 +41,8 @@ export interface Player {
   pending: PendingEffect;
   /** Non-null while inside a cave: dice total accumulated so far. */
   cave: { total: number } | null;
+  /** Skips their next turn (after building a bridge mid-move). Public. */
+  resting: boolean;
 }
 
 export type TurnStage = "start" | "chooseDie" | "move" | "caveItem";
@@ -68,7 +70,8 @@ export type PublicEvent =
   | { type: "caveEnter"; playerId: string }
   | { type: "caveRoll"; playerId: string; roll: number; total: number }
   | { type: "caveExit"; playerId: string; extra: number }
-  | { type: "bridge"; playerId: string }
+  | { type: "bridge"; playerId: string; rest: boolean }
+  | { type: "rest"; playerId: string }
   | { type: "flagFound"; playerId: string }
   | { type: "enclose"; playerId: string; count: number }
   | { type: "score"; set: number; counts: number[]; leader: number; flags: number[]; gained: number[] }

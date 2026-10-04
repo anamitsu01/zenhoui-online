@@ -124,6 +124,7 @@ function newPlayer(id: string, name: string, color: number, isHost: boolean, isB
     itemCount: 0,
     pending: emptyPending(),
     cave: null,
+    resting: false,
   };
 }
 
@@ -401,6 +402,7 @@ function dealNewGame(prev: RoomState): RoomState {
       p.itemCount = 0;
       p.pending = emptyPending();
       p.cave = null;
+      p.resting = false;
     });
   }
   for (const p of room.players) reveal(room, p.color, p.pos, VISION, p.id);
@@ -590,6 +592,14 @@ function byId(room: RoomState, id: string): Player {
 
 function beginTurn(room: RoomState) {
   const player = byId(room, room.order[room.turnIndex]);
+  // 1回休み: the turn passes straight on (it still counts toward the set).
+  if (player.resting) {
+    player.resting = false;
+    room.log.push({ type: "rest", playerId: player.id });
+    room.turn = null;
+    endTurn(room);
+    return;
+  }
   const pend = player.pending;
   room.turn = {
     playerId: player.id,
@@ -815,11 +825,18 @@ export function endMove(room: RoomState, playerId: string, enterCaveHere: boolea
 }
 
 /** Spend the whole turn building a bridge on an adjacent river. */
+/**
+ * Build a bridge on an adjacent river. At the start of the turn it costs the
+ * whole turn; mid-move it ends the move and costs the player's next turn.
+ */
 export function buildBridge(room: RoomState, playerId: string, cell: number): RoomState {
-  const { r, player } = actorTurn(room, playerId, ["start"]);
+  const { r, player, turn } = actorTurn(room, playerId, ["start", "move"]);
   if (player.cave) throw new GameError("洞窟の中では橋を架けられません");
+  const midMove = turn.stage === "move";
+  if (midMove && occupiedByOther(r, player.pos, playerId)) throw new GameError("他のコマがいるマスでは橋を架けられません");
   placeBridge(r, player, cell);
-  r.log.push({ type: "bridge", playerId });
+  if (midMove) player.resting = true;
+  r.log.push({ type: "bridge", playerId, rest: midMove });
   endTurn(r);
   return r;
 }

@@ -38,7 +38,7 @@ export const RUINS_EFFECTS: { roll: number; name: string; description: string }[
 export const TERRAIN_INFO: { icon: string; name: string; description: string }[] = [
   { icon: "⛰️", name: "山", description: "通れない" },
   { icon: "🌲", name: "森", description: "入るのに移動力を1余分に使う(残り移動力が1だと入れない)" },
-  { icon: "🌊", name: "川", description: "通れない。隣で1ターン使うと橋を架けられる" },
+  { icon: "🌊", name: "川", description: "通れない。隣の川をタップすると橋を架けられる(手番の最初なら手番終了、移動中ならそこで移動終了・次のターン1回休み)" },
   { icon: "🌉", name: "橋", description: "誰でも通れる" },
   { icon: "🧊", name: "氷河", description: "通れるが、ずっと白のまま塗れない" },
   { icon: "🏛️", name: "遺跡", description: "踏むとサイコロを振り、次のターンに効果(1回で崩れる)" },

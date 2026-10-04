@@ -182,7 +182,8 @@ export default function Lobby({
       <div className="mb-6 grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left text-sm sm:grid-cols-4">
         <NumberSetting label="目標点" value={settings.targetScore} disabled={!isHost} min={3} max={100} onChange={(v) => change({ targetScore: v })} />
         <NumberSetting label="制圧(%)" value={settings.conquestPct} disabled={!isHost} min={50} max={100} step={5} onChange={(v) => change({ conquestPct: v })} />
-        <NumberSetting label="洞窟の脱出値" value={settings.caveThreshold} disabled={!isHost} min={3} max={30} onChange={(v) => change({ caveThreshold: v })} />
+        <NumberSetting label="洞窟の脱出値" value={settings.caveThreshold} disabled={!isHost} min={3} max={60} onChange={(v) => change({ caveThreshold: v })} />
+        <NumberSetting label="フラッグ勝利(0=なし)" value={settings.flagWin} disabled={!isHost} min={0} max={9} onChange={(v) => change({ flagWin: v })} />
         <label className="flex flex-col gap-1">
           <span className="text-white/50">盤面</span>
           <select

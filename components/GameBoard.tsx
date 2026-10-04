@@ -222,6 +222,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           shakeKey={shakeCount(room)}
           path={turn?.path ?? []}
           locked={room.locked}
+          wet={room.wet}
           highlights={highlights}
           onCellClick={onCellClick}
         />
@@ -275,6 +276,7 @@ function ScoreStrip({ room }: { room: RoomState }) {
         </span>
         <span className="text-xs text-white/45">
           目標 {settings.targetScore}点 ・ 制圧 {settings.conquestPct}%({need}マス)
+          {settings.flagWin > 0 && ` ・ フラッグ${settings.flagWin}本(全${room.flagTotal}本)`}
         </span>
       </div>
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${room.colorCount}, minmax(0, 1fr))` }}>
@@ -296,7 +298,13 @@ function ScoreStrip({ room }: { room: RoomState }) {
                 <div className="h-full rounded-full" style={{ width: `${Math.min(100, (count / room.paintable) * 100)}%`, background: hex }} />
                 <div className="absolute top-0 h-full w-px bg-white/60" style={{ left: `${settings.conquestPct}%` }} />
               </div>
-              <p className="mt-0.5 text-[11px] text-white/50">{count}マス</p>
+              <p className="mt-0.5 flex justify-between text-[11px] text-white/50">
+                <span>{count}マス</span>
+                <span className={settings.flagWin && (room.flagCounts[c] ?? 0) >= settings.flagWin - 1 ? "font-bold text-lamp" : ""}>
+                  🚩{room.flagCounts[c] ?? 0}
+                  {settings.flagWin ? `/${settings.flagWin}` : ""}
+                </span>
+              </p>
             </div>
           );
         })}
@@ -653,7 +661,9 @@ function GameOverPanel({
       <p className="text-sm text-white/60">
         {room.winReason === "conquest"
           ? `盤面の${room.settings.conquestPct}%以上を塗りつぶして制圧した`
-          : `${room.settings.targetScore}点に到達した`}
+          : room.winReason === "flags"
+            ? `フラッグを同時に${room.settings.flagWin}本支配した`
+            : `${room.settings.targetScore}点に到達した`}
         {iWon && <span className="ml-1 font-bold text-lamp">(あなたの陣営)</span>}
       </p>
       <p className="text-xs text-white/40">霧が晴れ、全体の地図が見えています。</p>
@@ -764,6 +774,8 @@ function eventText(room: RoomState, e: PublicEvent): string {
         : `第${e.set}セット結果: ${teamLabel(room, e.leader)} +${e.gained[e.leader]}点(陣地+1・フラッグ${e.flags[e.leader]})`;
     case "skip":
       return `${name(e.playerId)}の手番を飛ばした`;
+    case "flagReach":
+      return `${teamLabel(room, e.color)}がフラッグ${e.held}本 — リーチ!`;
     case "win":
       return `${teamLabel(room, e.color)}の勝利!`;
   }
@@ -803,6 +815,7 @@ function Legend() {
     [<CaveIcon key="cave" />, "洞窟"],
     ["🎁", "宝箱"],
     ["🚩", "フラッグ"],
+    ["✨", "塗りたて(相手は次の手番まで上書き不可)"],
   ];
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 text-xs text-white/45">

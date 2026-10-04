@@ -4,6 +4,7 @@ import {
   autoBoardSize,
   Cell,
   DICE_COUNT,
+  ENEMY_SIGHT,
   emptyPending,
   Feature,
   isPaintable,
@@ -20,6 +21,7 @@ import {
   TEST_ROOM_CODE,
   TurnState,
   VISION,
+  WinReason,
 } from "./types";
 
 export class GameError extends Error {}
@@ -134,13 +136,16 @@ export function createRoom(hostId: string, hostName: string, isTest = false): Ro
     isTest,
     phase: "lobby",
     players: [newPlayer(hostId, hostName, 0, true)],
-    settings: { mode: "teams", targetScore: 15, conquestPct: 75, caveThreshold: 20, boardSize: 0 },
+    settings: { mode: "teams", targetScore: 15, conquestPct: 75, caveThreshold: 20, boardSize: 0, flagWin: 5 },
     colorCount: 2,
     size: 0,
     cells: [],
     seen: [],
     knownFlags: [],
     locked: [],
+    wet: {},
+    flagCounts: [],
+    flagTotal: 0,
     paintable: 0,
     set: 0,
     order: [],
@@ -193,6 +198,7 @@ export function updateSettings(room: RoomState, requesterId: string, settings: P
   next.targetScore = clampInt(settings.targetScore, 3, 100) ?? next.targetScore;
   next.conquestPct = clampInt(settings.conquestPct, 50, 100) ?? next.conquestPct;
   next.caveThreshold = clampInt(settings.caveThreshold, 3, 60) ?? next.caveThreshold;
+  next.flagWin = clampInt(settings.flagWin, 0, 9) ?? next.flagWin;
   if (settings.boardSize !== undefined) {
     const b = clampInt(settings.boardSize, 0, 80);
     if (b !== undefined) next.boardSize = b === 0 ? 0 : Math.max(15, b);
@@ -246,18 +252,22 @@ interface GeneratedMap {
   f: Feature[];
 }
 
-function generateMap(size: number, bases: number[]): GeneratedMap {
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const map = tryGenerateMap(size, bases);
-    if (map) return map;
+function generateMap(size: number, bases: number[], flagCount: number): GeneratedMap {
+  // Small boards with many players may not fit everything at full spacing:
+  // relax the spacing rules step by step rather than giving up.
+  for (let relax = 0; relax <= 3; relax++) {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const map = tryGenerateMap(size, bases, flagCount, relax);
+      if (map) return map;
+    }
   }
   // Extremely unlikely; fall back to an open field so the game can always start.
   return { t: Array(size * size).fill("plain"), f: Array(size * size).fill(null) };
 }
 
-function tryGenerateMap(size: number, bases: number[]): GeneratedMap | null {
+function tryGenerateMap(size: number, bases: number[], flagCount: number, relax: number): GeneratedMap | null {
   const n = size * size;
-  const terrain = generateTerrain(size, bases);
+  const terrain = generateTerrain(size, bases, relax);
   if (!terrain) return null;
   const t: Terrain[] = terrain;
   const f: Feature[] = Array(n).fill(null);
@@ -279,8 +289,8 @@ function tryGenerateMap(size: number, bases: number[]): GeneratedMap | null {
     return chosen.length;
   }
 
-  const flagCount = bases.length > 2 ? 4 + rand(2) : 3 + rand(3);
-  if (place("flag", flagCount, 5, Math.max(5, Math.round(size / 5))) < flagCount) return null;
+  const flagSpacing = Math.max(4 - relax, Math.round(size / (Math.sqrt(flagCount) + 1.5)) - relax * 2);
+  if (place("flag", flagCount, Math.max(3, 5 - relax), flagSpacing) < flagCount) return null;
   place("cave", Math.round(n / 150), 4, 4);
   place("ruins", Math.round(n / 90), 4, 3);
   place("chest", Math.round(n / 60), 3, 2);
@@ -372,7 +382,10 @@ function dealNewGame(prev: RoomState): RoomState {
   const size = room.settings.boardSize || autoBoardSize(room.players.length);
   // Team mode: one start per player, scattered. Individual mode: one corner each.
   const starts = ffa ? basePositions(size, colorCount) : scatteredStarts(size, room.players.length);
-  const map = generateMap(size, starts);
+  // Enough flags that a flag win (if on) needs most but not all of them.
+  const flagWin = room.settings.flagWin;
+  const flagCount = Math.max(Math.min(9, Math.max(5, Math.round(size / 4.3))), flagWin ? flagWin + 2 : 0);
+  const map = generateMap(size, starts, flagCount);
 
   room.colorCount = colorCount;
   room.size = size;
@@ -380,6 +393,9 @@ function dealNewGame(prev: RoomState): RoomState {
   room.seen = Array.from({ length: colorCount }, () => "0".repeat(size * size));
   room.knownFlags = [];
   room.locked = [];
+  room.wet = {};
+  room.flagCounts = Array(colorCount).fill(0);
+  room.flagTotal = room.cells.filter((c) => c.f === "flag").length;
   room.paintable = room.cells.filter((c) => isPaintable(c.t)).length;
   room.scores = Array(colorCount).fill(0);
   room.lastScoring = null;
@@ -475,16 +491,22 @@ function reveal(room: RoomState, color: number, center: number, radius: number, 
 
 function isProtected(room: RoomState, cell: number, painter: number): boolean {
   if (room.players.some((p) => p.cave && p.pos === cell)) return true;
-  return room.locked.includes(cell) && room.cells[cell].o !== painter;
+  if (room.cells[cell].o === painter) return false;
+  // Fresh paint can't be painted over by others until its painter's next turn.
+  const wetBy = room.wet[cell];
+  if (wetBy && room.players.find((p) => p.id === wetBy)?.color !== painter) return true;
+  return room.locked.includes(cell);
 }
 
 /** Returns true when the cell changed color. */
-function paint(room: RoomState, cell: number, color: number, noOverwrite: boolean): boolean {
+function paint(room: RoomState, cell: number, painter: Player, noOverwrite: boolean): boolean {
   const c = room.cells[cell];
+  const color = painter.color;
   if (!isPaintable(c.t) || c.o === color) return false;
   if (c.o >= 0 && noOverwrite) return false;
   if (isProtected(room, cell, color)) return false;
   c.o = color;
+  room.wet[cell] = painter.id;
   return true;
 }
 
@@ -493,7 +515,8 @@ function paint(room: RoomState, cell: number, color: number, noOverwrite: boolea
  * enclosed and becomes `color` (terrain doesn't block; glaciers etc. just
  * stay unpainted).
  */
-function captureEnclosed(room: RoomState, color: number): number {
+function captureEnclosed(room: RoomState, painter: Player): number {
+  const color = painter.color;
   const { size, cells } = room;
   const n = size * size;
   const outside = new Uint8Array(n);
@@ -516,25 +539,52 @@ function captureEnclosed(room: RoomState, color: number): number {
   }
   let captured = 0;
   for (let i = 0; i < n; i++) {
-    if (!outside[i] && cells[i].o !== color && paint(room, i, color, false)) captured++;
+    if (!outside[i] && cells[i].o !== color && paint(room, i, painter, false)) captured++;
   }
   return captured;
 }
 
 function recount(room: RoomState) {
   const counts = Array(room.colorCount).fill(0);
-  for (const c of room.cells) if (c.o >= 0) counts[c.o]++;
+  const flags = Array(room.colorCount).fill(0);
+  for (const c of room.cells) {
+    if (c.o < 0) continue;
+    counts[c.o]++;
+    if (c.f === "flag") flags[c.o]++;
+  }
   room.counts = counts;
+  // "リーチ": announce when a color gets one flag away from a flag win.
+  const need = room.settings.flagWin;
+  if (need > 1) {
+    flags.forEach((held, color) => {
+      if (held === need - 1 && (room.flagCounts[color] ?? 0) < need - 1) room.log.push({ type: "flagReach", color, held });
+    });
+  }
+  room.flagCounts = flags;
+}
+
+/** Holding enough flags at once wins on the spot. */
+function checkFlagWin(room: RoomState): boolean {
+  const need = room.settings.flagWin;
+  if (!need || room.phase !== "playing") return false;
+  const color = room.flagCounts.findIndex((n) => n >= need);
+  if (color < 0) return false;
+  finish(room, color, "flags");
+  return true;
 }
 
 function afterPaint(room: RoomState, player: Player) {
-  const captured = captureEnclosed(room, player.color);
+  const captured = captureEnclosed(room, player);
   if (captured > 0) room.log.push({ type: "enclose", playerId: player.id, count: captured });
   recount(room);
 }
 
 function stepCost(room: RoomState, cell: number, turn: TurnState): number {
-  return room.cells[cell].t === "forest" && !turn.mods.ignoreForest ? 2 : 1;
+  let cost = room.cells[cell].t === "forest" && !turn.mods.ignoreForest ? 2 : 1;
+  // Closing in on an opponent (within 1 cell, diagonals included) is heavy going.
+  const mover = room.players.find((p) => p.id === turn.playerId);
+  if (mover && room.players.some((p) => p.color !== mover.color && p.pos >= 0 && chebyshev(room.size, p.pos, cell) <= 1)) cost++;
+  return cost;
 }
 
 function occupiedByOther(room: RoomState, cell: number, playerId: string): boolean {
@@ -592,6 +642,8 @@ function byId(room: RoomState, id: string): Player {
 
 function beginTurn(room: RoomState) {
   const player = byId(room, room.order[room.turnIndex]);
+  // Your paint from last turn has dried: others can paint over it again.
+  for (const [cell, by] of Object.entries(room.wet)) if (by === player.id) delete room.wet[Number(cell)];
   // 1回休み: the turn passes straight on (it still counts toward the set).
   if (player.resting) {
     player.resting = false;
@@ -637,7 +689,7 @@ function checkConquest(room: RoomState): boolean {
   return true;
 }
 
-function finish(room: RoomState, color: number, reason: "score" | "conquest") {
+function finish(room: RoomState, color: number, reason: WinReason) {
   room.phase = "gameover";
   room.winner = color;
   room.winReason = reason;
@@ -663,7 +715,7 @@ function scoreSet(room: RoomState) {
 }
 
 function endTurn(room: RoomState) {
-  if (checkConquest(room)) return;
+  if (room.phase !== "playing" || checkFlagWin(room) || checkConquest(room)) return;
   room.turnIndex++;
   if (room.turnIndex >= room.order.length) {
     scoreSet(room);
@@ -760,7 +812,7 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
   player.pos = to;
   reveal(r, player.color, to, VISION, playerId);
 
-  paint(r, to, player.color, turn.mods.noOverwrite);
+  paint(r, to, player, turn.mods.noOverwrite);
   if (turn.mods.roller) {
     const [fx, fy] = xy(r.size, from);
     const [tx, ty] = xy(r.size, to);
@@ -769,7 +821,7 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
       [tx + dy, ty + dx],
       [tx - dy, ty - dx],
     ]) {
-      if (inBounds(r.size, px, py)) paint(r, idx(r.size, px, py), player.color, turn.mods.noOverwrite);
+      if (inBounds(r.size, px, py)) paint(r, idx(r.size, px, py), player, turn.mods.noOverwrite);
     }
   }
 
@@ -787,6 +839,7 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
   }
 
   afterPaint(r, player);
+  if (checkFlagWin(r)) return r;
 
   if (turn.remaining === 0) {
     if (cell.f === "cave") enterCave(r, player);
@@ -864,8 +917,9 @@ export function applyItem(room: RoomState, playerId: string, index: number, targ
       turn.mods.roller = true;
       break;
     case "bomb":
-      for (const c of square(r.size, player.pos, 1)) paint(r, c, player.color, false);
+      for (const c of square(r.size, player.pos, 1)) paint(r, c, player, false);
       afterPaint(r, player);
+      if (checkFlagWin(r)) return r;
       break;
     case "scout": {
       const c = cellTarget(r, target);
@@ -940,18 +994,24 @@ export function sanitizeForPlayer(room: RoomState, viewerId: string): RoomState 
   const viewer = room.players.find((p) => p.id === viewerId);
   const color = viewer?.color ?? -1;
   const visible = (c: number) => seenBy(room, color, c) || room.knownFlags.includes(c);
+  // Terrain stays revealed once seen, but opponents are only visible near your own pieces.
+  const allies = room.players.filter((p) => p.color === color && p.pos >= 0).map((p) => p.pos);
+  const inSight = (c: number) => allies.some((a) => chebyshev(room.size, a, c) <= ENEMY_SIGHT);
   const turn = room.turn;
   const actorIsAlly = !!turn && byId(room, turn.playerId).color === color;
+  const wet: Record<number, string> = {};
+  for (const [cell, by] of Object.entries(room.wet)) if (visible(Number(cell))) wet[Number(cell)] = by;
   return {
     ...room,
     seen: [],
+    wet,
     cells: room.cells.map((c, i) => (visible(i) ? c : FOG)),
     players: room.players.map((p) =>
-      p.color === color ? p : { ...p, items: [], pos: p.pos >= 0 && visible(p.pos) ? p.pos : -1 }
+      p.color === color ? p : { ...p, items: [], pos: p.pos >= 0 && inSight(p.pos) ? p.pos : -1 }
     ),
     turn: turn && {
       ...turn,
-      path: actorIsAlly ? turn.path : turn.path.filter(visible),
+      path: actorIsAlly ? turn.path : turn.path.filter(inSight),
       caveChoices: turn.playerId === viewerId ? turn.caveChoices : [],
     },
   };

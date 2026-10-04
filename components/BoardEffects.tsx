@@ -56,6 +56,7 @@ export function SoundDirector({ room, viewerId }: { room: RoomState; viewerId: s
           play("enclose", { volume: e.count >= BIG_CAPTURE ? 1 : 0.7 });
           if (e.playerId === viewerId) buzz(e.count >= BIG_CAPTURE ? 60 : 25);
           break;
+        case "flagReach":
         case "flagFound":
           play("flag");
           break;
@@ -120,6 +121,10 @@ function cutInFor(room: RoomState, e: PublicEvent, key: number, viewerId: string
   const p = "playerId" in e ? room.players.find((pl) => pl.id === e.playerId) : undefined;
   const who = p ? (p.id === viewerId ? "あなた" : p.name) : "";
   const color = p ? colorHex(room.settings.mode, p.color) : "#f0b43c";
+  if (e.type === "flagReach") {
+    const team = room.settings.mode === "teams" ? (e.color === 0 ? "青チーム" : "赤チーム") : room.players.find((pl) => pl.color === e.color)?.name ?? "";
+    return { key, title: "リーチ!", sub: `${team}がフラッグ${e.held}本 — あと1本で勝利`, color: colorHex(room.settings.mode, e.color), icon: "🚩" };
+  }
   if (e.type === "flagFound") return { key, title: "フラッグ発見!", sub: `${who}が見つけた — 全員に位置が公開`, color, icon: "🚩" };
   if (e.type === "enclose" && e.count >= BIG_CAPTURE) return { key, title: `${e.count}マス 包囲!`, sub: `${who}が大きく囲った`, color, icon: "🌀" };
   if (e.type === "caveExit") return { key, title: "洞窟から脱出!", sub: `${who}がお宝を持ち帰った`, color, icon: <CaveIcon /> };

@@ -11,7 +11,7 @@ import type { Terrain } from "./types";
  *
  * Returns null when this attempt painted itself into a corner; the caller retries.
  */
-export function generateTerrain(size: number, bases: number[]): Terrain[] | null {
+export function generateTerrain(size: number, bases: number[], relax = 0): Terrain[] | null {
   const n = size * size;
   const t: Terrain[] = Array(n).fill("plain");
   // Scale factor relative to the original 25×25 design.
@@ -46,7 +46,9 @@ export function generateTerrain(size: number, bases: number[]): Terrain[] | null
     return items[items.length - 1][0];
   };
   // Keep terrain out of the starting areas (and a margin for rivers).
-  const open = (i: number, margin: number) => baseDist(i) > margin;
+  // `relax` (0-3, raised by the caller after failed attempts) shrinks the margins
+  // so crowded small boards still fit. Starting areas (radius 2) always stay clear.
+  const open = (i: number, margin: number) => baseDist(i) > Math.max(2, margin - relax);
 
   // --- Mountains -----------------------------------------------------------
   const DIRS8: [number, number][] = [
@@ -97,7 +99,7 @@ export function generateTerrain(size: number, bases: number[]): Terrain[] | null
     // Spring: a plain cell next to a mountain, away from the starting areas.
     const springs = [];
     for (let i = 0; i < n; i++) {
-      if (t[i] === "plain" && open(i, 4) && edgeDist(i) >= Math.round(size * 0.25) && nb4(i).some((c) => t[c] === "mountain")) springs.push(i);
+      if (t[i] === "plain" && open(i, 4) && edgeDist(i) >= Math.max(2, Math.round(size * 0.25) - relax) && nb4(i).some((c) => t[c] === "mountain")) springs.push(i);
     }
     if (!springs.length) return false;
     const start = springs[rand(springs.length)];
@@ -153,7 +155,7 @@ export function generateTerrain(size: number, bases: number[]): Terrain[] | null
   const riverCount = Math.max(1, Math.round(size / 16));
   let rivers = 0;
   for (let tries = 0; tries < 30 * riverCount; tries++) if (rivers < riverCount && carveRiver()) rivers++;
-  if (rivers === 0) return null;
+  if (rivers === 0 && relax < 2) return null;
 
   // --- Forests -------------------------------------------------------------
   const forestGoal = Math.round(n * 0.14);

@@ -1,4 +1,5 @@
 import { ITEM_BY_ID, ITEMS } from "./content";
+import { generateTerrain } from "./mapGen";
 import {
   autoBoardSize,
   Cell,
@@ -246,65 +247,10 @@ function generateMap(size: number, bases: number[]): GeneratedMap {
 
 function tryGenerateMap(size: number, bases: number[]): GeneratedMap | null {
   const n = size * size;
-  const t: Terrain[] = Array(n).fill("plain");
+  const terrain = generateTerrain(size, bases);
+  if (!terrain) return null;
+  const t: Terrain[] = terrain;
   const f: Feature[] = Array(n).fill(null);
-
-  // Organic blobs grown by random accretion.
-  function blobs(kind: Terrain, coverage: number, minSize: number, maxSize: number) {
-    let placed = 0;
-    const goal = Math.round(n * coverage);
-    while (placed < goal) {
-      const target = minSize + rand(maxSize - minSize + 1);
-      const cells = [rand(n)];
-      while (cells.length < target) {
-        const from = cells[rand(cells.length)];
-        const nb = neighbors4(size, from);
-        const next = nb[rand(nb.length)];
-        if (!cells.includes(next)) cells.push(next);
-      }
-      for (const c of cells) {
-        if (t[c] === "plain") {
-          t[c] = kind;
-          placed++;
-        }
-      }
-    }
-  }
-
-  blobs("forest", 0.13, 5, 12);
-  blobs("mountain", 0.08, 3, 8);
-  blobs("glacier", 0.04, 3, 7);
-
-  // Rivers: meandering lines that start at an edge and run part-way across,
-  // so they can be walked around (slowly) or bridged.
-  const riverCount = size >= 25 ? 2 : 1;
-  for (let r = 0; r < riverCount; r++) {
-    const vertical = Math.random() < 0.5;
-    const fromStart = Math.random() < 0.5;
-    const lane = Math.floor(size * 0.3) + rand(Math.floor(size * 0.4));
-    let x = vertical ? lane : fromStart ? 0 : size - 1;
-    let y = vertical ? (fromStart ? 0 : size - 1) : lane;
-    const main: [number, number] = vertical ? [0, fromStart ? 1 : -1] : [fromStart ? 1 : -1, 0];
-    const length = Math.floor(size * 0.45) + rand(Math.floor(size * 0.3));
-    for (let s = 0; s < length && inBounds(size, x, y); s++) {
-      t[idx(size, x, y)] = "river";
-      if (Math.random() < 0.65) {
-        x += main[0];
-        y += main[1];
-      } else {
-        const side = Math.random() < 0.5 ? 1 : -1;
-        const nx = x + (vertical ? side : 0);
-        const ny = y + (vertical ? 0 : side);
-        if (inBounds(size, nx, ny)) {
-          x = nx;
-          y = ny;
-        }
-      }
-    }
-  }
-
-  // Starting areas are always open ground.
-  for (const b of bases) for (const c of square(size, b, 2)) t[c] = "plain";
 
   // Features on plain ground, away from the starting areas.
   const farFromBases = (c: number, d: number) => bases.every((b) => chebyshev(size, b, c) >= d);

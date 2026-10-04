@@ -25,13 +25,13 @@ export const ITEMS: ItemDef[] = [
 export const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i])) as Record<ItemKind, ItemDef>;
 
 /** Ruins: roll a die when stepping on one; the effect applies to your next turn. */
-export const RUINS_EFFECTS: { roll: number; name: string; description: string }[] = [
-  { roll: 1, name: "追い風", description: "次のターン移動力+3" },
-  { roll: 2, name: "足かせ", description: "次のターン移動力-2" },
-  { roll: 3, name: "森の加護", description: "次のターン森の追加コストを無視" },
-  { roll: 4, name: "色あせ", description: "次のターン、通過した相手の色を塗り替えられない" },
-  { roll: 5, name: "大筆", description: "次のターン、通過マスの左右1マスも塗る" },
-  { roll: 6, name: "選べる運命", description: "次のターン、サイコロを3個振って好きな2個を使う" },
+export const RUINS_EFFECTS: { roll: number; name: string; description: string; icon: string; good: boolean }[] = [
+  { roll: 1, name: "追い風", description: "次のターン移動力+3", icon: "💨", good: true },
+  { roll: 2, name: "足かせ", description: "次のターン移動力-2", icon: "⛓️", good: false },
+  { roll: 3, name: "森の加護", description: "次のターン森の追加コストを無視", icon: "🌿", good: true },
+  { roll: 4, name: "色あせ", description: "次のターン、通過した相手の色を塗り替えられない", icon: "🫥", good: false },
+  { roll: 5, name: "大筆", description: "次のターン、通過マスの左右1マスも塗る", icon: "🖌️", good: true },
+  { roll: 6, name: "選べる運命", description: "次のターン、サイコロを3個振って好きな2個を使う", icon: "🎲", good: true },
 ];
 
 /** icon "cave" is drawn with CaveIcon (no emoji reads as a cave). */

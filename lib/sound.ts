@@ -17,6 +17,9 @@ export type SoundName =
   | "bridge"
   | "myTurn"
   | "setEnd"
+  | "ruins"
+  | "ruinsGood"
+  | "ruinsBad"
   | "win";
 
 const MUTE_KEY = "zenhoui:muted";
@@ -166,6 +169,18 @@ export function play(name: SoundName, opts: { volume?: number } = {}) {
       break;
     case "setEnd": // short jingle
       [659, 784, 988].forEach((f, i) => tone(f, now + i * 0.1, 0.3, "triangle", 0.25 * v));
+      break;
+    case "ruins": // ancient hum as the stones wake
+      tone(110, now, 0.9, "sine", 0.35 * v, 140);
+      tone(165, now + 0.05, 0.8, "triangle", 0.12 * v, 210);
+      noise(now, 0.5, 400, 0.08 * v, 0.5);
+      break;
+    case "ruinsGood": // blessing chime
+      [784, 988, 1175, 1568].forEach((f, i) => tone(f, now + i * 0.06, 0.4, "sine", 0.22 * v));
+      break;
+    case "ruinsBad": // ominous drop
+      tone(330, now, 0.5, "sawtooth", 0.1 * v, 110);
+      tone(220, now + 0.12, 0.6, "triangle", 0.18 * v, 80);
       break;
     case "win": // fanfare
       [523, 523, 523, 698, 880, 1047].forEach((f, i) => tone(f, now + [0, 0.12, 0.24, 0.4, 0.6, 0.8][i], i === 5 ? 0.8 : 0.18, "square", 0.12 * v));

@@ -7,6 +7,7 @@ import { legalSteps, neighbors4 } from "@/lib/gameEngine";
 import type { ClientToServerEvents } from "@/lib/socketEvents";
 import type { ItemKind, Player, PublicEvent, RoomState, TurnState } from "@/lib/types";
 import { colorName, MAX_ITEMS } from "@/lib/types";
+import { play } from "@/lib/sound";
 import { EventCutIns, MuteToggle, shakeCount, SoundDirector } from "./BoardEffects";
 import CaveIcon from "./CaveIcon";
 import ConfirmDialog from "./ConfirmDialog";
@@ -254,6 +255,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       <SoundDirector room={room} viewerId={viewerId} />
       <EventCutIns room={room} viewerId={viewerId} />
       <ItemPickups items={me.items} />
+      <RuinsPopups room={room} viewerId={viewerId} />
     </div>
   );
 }
@@ -841,6 +843,86 @@ function Legend() {
  * appended on pickup and removed on use, so anything past the previously
  * seen count is new. Nothing pops on first load / reconnect.
  */
+/**
+ * When I step on ruins: the die tumbles, then the effect for my next turn is
+ * revealed (gold for a blessing, violet for a curse). Ruins already in the log
+ * when the screen opened are not replayed.
+ */
+function RuinsPopups({ room, viewerId }: { room: RoomState; viewerId: string }) {
+  const [seen, setSeen] = useState(() => room.log.length);
+  const from = seen > room.log.length ? 0 : seen; // a rematch starts a fresh log
+  let index = -1;
+  for (let i = from; i < room.log.length; i++) {
+    const e = room.log[i];
+    if (e.type === "ruins" && e.playerId === viewerId) {
+      index = i;
+      break;
+    }
+  }
+  if (index < 0) return null;
+  const e = room.log[index] as Extract<PublicEvent, { type: "ruins" }>;
+  return <RuinsPopup key={index} roll={e.roll} onClose={() => setSeen(index + 1)} />;
+}
+
+const RUINS_REVEAL_MS = 650;
+
+function RuinsPopup({ roll, onClose }: { roll: number; onClose: () => void }) {
+  const effect = RUINS_EFFECTS.find((r) => r.roll === roll)!;
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    play("ruins");
+    const t = setTimeout(() => {
+      setRevealed(true);
+      play(effect.good ? "ruinsGood" : "ruinsBad");
+    }, RUINS_REVEAL_MS);
+    return () => clearTimeout(t);
+  }, [effect.good]);
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (revealed && (ev.key === "Enter" || ev.key === "Escape")) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [revealed, onClose]);
+
+  const tone = effect.good
+    ? { border: "border-lamp", glow: "rgba(240,180,60,0.55)", text: "text-lamp-light", label: "遺跡の加護" }
+    : { border: "border-violet-400", glow: "rgba(167,139,250,0.55)", text: "text-violet-300", label: "遺跡の呪い" };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4" role="dialog" aria-modal="true" onClick={() => revealed && onClose()}>
+      <div
+        className={`zh-pop relative w-full max-w-xs overflow-hidden rounded-2xl border-2 bg-panel p-6 text-center shadow-2xl ${revealed ? tone.border : "border-white/20"}`}
+        style={revealed ? { boxShadow: `0 0 40px 6px ${tone.glow}` } : undefined}
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        {revealed && <span className="zh-ruins-rays pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at 50% 38%, ${tone.glow}, transparent 60%)` }} />}
+        <p className="relative text-xs tracking-[0.3em] text-white/50">ANCIENT RUINS</p>
+        <p className="relative mb-3 font-bold text-white/80">🏛️ 遺跡が目を覚ました…</p>
+        <div className="relative mb-3 flex justify-center">
+          <Die value={roll} size="lg" />
+        </div>
+        {revealed ? (
+          <div className="zh-pop relative">
+            <p className={`text-sm font-bold ${tone.text}`}>{tone.label}</p>
+            <p className="mt-1 text-5xl">{effect.icon}</p>
+            <p className="mt-1 text-2xl font-black">{effect.name}</p>
+            <p className="mt-2 text-sm text-white/80">{effect.description}</p>
+            <p className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-white/50">効果はあなたの次のターンに発動します。</p>
+            <button
+              onClick={onClose}
+              className={`mt-4 w-full rounded-full px-6 py-2.5 font-bold text-black ${effect.good ? "bg-lamp hover:bg-lamp-light" : "bg-violet-300 hover:bg-violet-200"}`}
+            >
+              OK
+            </button>
+          </div>
+        ) : (
+          <p className="relative animate-pulse py-6 text-sm text-white/50">運命のサイコロが転がる…</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ItemPickups({ items }: { items: ItemKind[] }) {
   const key = items.join(",");
   const [seen, setSeen] = useState({ key, count: items.length });

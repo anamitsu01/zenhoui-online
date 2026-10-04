@@ -327,3 +327,21 @@ body {
   }
 }
 
+
+/* Ruins popup: light swells behind the revealed effect. */
+@keyframes zh-ruins-rays {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.55;
+    transform: scale(1.15);
+  }
+}
+.zh-ruins-rays {
+  animation: zh-ruins-rays 0.9s ease-out both;
+}

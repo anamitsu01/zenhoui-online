@@ -52,7 +52,7 @@ function startBot(i: number) {
         act(() => socket.emit("game:roll", { code }, done));
       }
     } else if (turn.stage === "chooseDie") {
-      act(() => socket.emit("game:chooseDie", { code, index: turn.dice[0] >= turn.dice[1] ? 0 : 1 }, done));
+      act(() => socket.emit("game:chooseDie", { code, index: turn.dice.indexOf(Math.min(...turn.dice)) }, done));
     } else if (turn.stage === "caveItem") {
       act(() => socket.emit("game:caveItem", { code, index: self.items.length < 3 ? 0 : -1 }, done));
     } else if (turn.stage === "move") {

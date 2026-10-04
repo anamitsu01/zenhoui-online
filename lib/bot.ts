@@ -43,7 +43,7 @@ export function botAct(room: RoomState, botId: string): RoomState {
     return roll(room, botId);
   }
 
-  if (turn.stage === "chooseDie") return chooseDie(room, botId, turn.dice[0] >= turn.dice[1] ? 0 : 1);
+  if (turn.stage === "chooseDie") return chooseDie(room, botId, turn.dice.indexOf(Math.min(...turn.dice)));
   if (turn.stage === "caveItem") return takeCaveItem(room, botId, bot.items.length < MAX_ITEMS ? 0 : -1);
 
   const options = legalSteps(room, bot, turn);

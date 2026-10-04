@@ -279,7 +279,7 @@ function ActionPanel({
         {turn.dice.length > 0 && <DiceRow dice={turn.dice} />}
         <p className="text-sm text-white/50">
           {turn.stage === "start" && (actor?.cave ? "洞窟の中…" : "サイコロを振るのを待っています")}
-          {turn.stage === "chooseDie" && "どちらの目を使うか選んでいます"}
+          {turn.stage === "chooseDie" && "使うサイコロを選んでいます"}
           {turn.stage === "move" && `移動中(残り ${turn.remaining})`}
           {turn.stage === "caveItem" && "洞窟でアイテムを選んでいます"}
         </p>
@@ -377,7 +377,7 @@ function ActionPanel({
   if (turn.stage === "chooseDie") {
     return (
       <div className="flex flex-col items-center gap-2 py-1 text-center">
-        <p className="font-bold text-lamp">二つの運命 — 使う目を選んでください</p>
+        <p className="font-bold text-lamp">選べる運命 — 使わないサイコロを1つ選んでください</p>
         <div className="flex gap-3">
           {turn.dice.map((d, i) => (
             <button key={i} disabled={busy} onClick={() => run(act("game:chooseDie", { index: i }))} className="rounded-xl p-1 hover:bg-white/10">
@@ -442,7 +442,7 @@ function ModChips({ mods }: { mods: TurnState["mods"] }) {
   if (mods.ignoreForest) chips.push("森の追加コスト無視");
   if (mods.noOverwrite) chips.push("相手の色を塗り替えられない");
   if (mods.roller) chips.push("左右も塗る");
-  if (mods.doubleDice) chips.push("サイコロ2個");
+  if (mods.doubleDice) chips.push("サイコロ3個から2個");
   if (!chips.length) return null;
   return (
     <div className="flex flex-wrap justify-center gap-1">

@@ -31,13 +31,13 @@ export const RUINS_EFFECTS: { roll: number; name: string; description: string }[
   { roll: 3, name: "森の加護", description: "次のターン森の追加コストを無視" },
   { roll: 4, name: "色あせ", description: "次のターン、通過した相手の色を塗り替えられない" },
   { roll: 5, name: "大筆", description: "次のターン、通過マスの左右1マスも塗る" },
-  { roll: 6, name: "二つの運命", description: "次のターン、サイコロを2個振って好きな方を使う" },
+  { roll: 6, name: "選べる運命", description: "次のターン、サイコロを3個振って好きな2個を使う" },
 ];
 
 /** icon "cave" is drawn with CaveIcon (no emoji reads as a cave). */
 export const TERRAIN_INFO: { icon: string; name: string; description: string }[] = [
   { icon: "⛰️", name: "山", description: "通れない" },
-  { icon: "🌲", name: "森", description: "入るのに移動力を1余分に使う(目が1だと入れない)" },
+  { icon: "🌲", name: "森", description: "入るのに移動力を1余分に使う(残り移動力が1だと入れない)" },
   { icon: "🌊", name: "川", description: "通れない。隣で1ターン使うと橋を架けられる" },
   { icon: "🌉", name: "橋", description: "誰でも通れる" },
   { icon: "🧊", name: "氷河", description: "通れるが、ずっと白のまま塗れない" },

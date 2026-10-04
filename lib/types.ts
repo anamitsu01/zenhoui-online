@@ -130,6 +130,9 @@ export interface RoomState {
 export const TEST_ROOM_CODE = "ZZZZZ";
 export const TEST_ROOM_BOTS = 3;
 
+/** Dice rolled each turn; movement is their total. */
+export const DICE_COUNT = 2;
+
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
 export const MAX_FFA_PLAYERS = 4;

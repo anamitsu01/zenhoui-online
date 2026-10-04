@@ -14,7 +14,7 @@ export function RulesContent({ className = "" }: { className?: string }) {
   return (
     <div className={`space-y-3 text-white/70 ${className}`}>
       <p>
-        <b className="text-ink">手番</b>: サイコロを振り、出た目の数だけ上下左右の好きな方向へ進む(何度曲がってもよく、来た道を戻ってもよい)。
+        <b className="text-ink">手番</b>: サイコロを2個振り、出た目の合計だけ上下左右の好きな方向へ進む(何度曲がってもよく、来た道を戻ってもよい)。
         出た目はぴったり使い切る。通ったマスは自分の色になり、相手の色も上書きできる。
       </p>
       <p>

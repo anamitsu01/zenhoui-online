@@ -67,7 +67,7 @@ function act(room: RoomState): RoomState {
     }
     return roll(room, player.id);
   }
-  if (turn.stage === "chooseDie") return chooseDie(room, player.id, Math.random() < 0.5 ? 0 : 1);
+  if (turn.stage === "chooseDie") return chooseDie(room, player.id, Math.floor(Math.random() * turn.dice.length));
   if (turn.stage === "caveItem") {
     try {
       return takeCaveItem(room, player.id, 0);

@@ -3,6 +3,7 @@ import { generateTerrain } from "./mapGen";
 import {
   autoBoardSize,
   Cell,
+  DICE_COUNT,
   emptyPending,
   Feature,
   isPaintable,
@@ -29,6 +30,14 @@ function rand(n: number): number {
 
 function die(): number {
   return rand(6) + 1;
+}
+
+function rollDice(count: number): number[] {
+  return Array.from({ length: count }, die);
+}
+
+function sum(values: number[]): number {
+  return values.reduce((a, b) => a + b, 0);
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -124,7 +133,7 @@ export function createRoom(hostId: string, hostName: string, isTest = false): Ro
     isTest,
     phase: "lobby",
     players: [newPlayer(hostId, hostName, 0, true)],
-    settings: { mode: "teams", targetScore: 15, conquestPct: 75, caveThreshold: 10, boardSize: 0 },
+    settings: { mode: "teams", targetScore: 15, conquestPct: 75, caveThreshold: 20, boardSize: 0 },
     colorCount: 2,
     size: 0,
     cells: [],
@@ -182,7 +191,7 @@ export function updateSettings(room: RoomState, requesterId: string, settings: P
     typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : undefined;
   next.targetScore = clampInt(settings.targetScore, 3, 100) ?? next.targetScore;
   next.conquestPct = clampInt(settings.conquestPct, 50, 100) ?? next.conquestPct;
-  next.caveThreshold = clampInt(settings.caveThreshold, 3, 30) ?? next.caveThreshold;
+  next.caveThreshold = clampInt(settings.caveThreshold, 3, 60) ?? next.caveThreshold;
   if (settings.boardSize !== undefined) {
     const b = clampInt(settings.boardSize, 0, 80);
     if (b !== undefined) next.boardSize = b === 0 ? 0 : Math.max(15, b);
@@ -311,6 +320,26 @@ function basePositions(size: number, colorCount: number): number[] {
   return corners.slice(0, colorCount);
 }
 
+/**
+ * Team mode: every player gets their own starting spot, spread across the
+ * board (not too close to the edge or to anyone else).
+ */
+function scatteredStarts(size: number, count: number): number[] {
+  const margin = Math.max(3, Math.round(size * 0.08));
+  const span = size - 2 * margin;
+  for (let spacing = Math.round(size / (Math.sqrt(count) + 0.5)); spacing >= 4; spacing--) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const starts: number[] = [];
+      for (let tries = 0; tries < 400 && starts.length < count; tries++) {
+        const c = idx(size, margin + rand(span), margin + rand(span));
+        if (starts.every((o) => chebyshev(size, o, c) >= spacing)) starts.push(c);
+      }
+      if (starts.length === count) return starts;
+    }
+  }
+  return Array.from({ length: count }, (_, i) => idx(size, margin + i * 2, margin)); // unreachable in practice
+}
+
 const START_OFFSETS: [number, number][] = [
   [0, 0],
   [1, 0],
@@ -340,8 +369,9 @@ function dealNewGame(prev: RoomState): RoomState {
   if (ffa) room.players.forEach((p, i) => (p.color = i));
   const colorCount = ffa ? room.players.length : 2;
   const size = room.settings.boardSize || autoBoardSize(room.players.length);
-  const bases = basePositions(size, colorCount);
-  const map = generateMap(size, bases);
+  // Team mode: one start per player, scattered. Individual mode: one corner each.
+  const starts = ffa ? basePositions(size, colorCount) : scatteredStarts(size, room.players.length);
+  const map = generateMap(size, starts);
 
   room.colorCount = colorCount;
   room.size = size;
@@ -356,12 +386,15 @@ function dealNewGame(prev: RoomState): RoomState {
   room.winner = null;
   room.winReason = null;
 
+  const shuffledStarts = shuffle(starts);
   for (let c = 0; c < colorCount; c++) {
-    for (const cell of square(size, bases[c], 1)) room.cells[cell].o = c;
     const members = room.players.filter((p) => p.color === c);
     members.forEach((p, i) => {
-      const [bx, by] = xy(size, bases[c]);
-      const [dx, dy] = START_OFFSETS[i % START_OFFSETS.length];
+      // Individual mode: one player per corner. Team mode: everyone takes their own scattered spot.
+      const base = ffa ? starts[c] : shuffledStarts.pop()!;
+      for (const cell of square(size, base, 1)) room.cells[cell].o = c;
+      const [bx, by] = xy(size, base);
+      const [dx, dy] = ffa ? START_OFFSETS[i % START_OFFSETS.length] : [0, 0];
       p.number = i + 1;
       p.pos = idx(size, bx + dx, by + dy);
       p.items = [];
@@ -636,8 +669,8 @@ function endTurn(room: RoomState) {
   beginTurn(room);
 }
 
-function startMove(room: RoomState, turn: TurnState, player: Player, roll: number) {
-  const steps = Math.max(1, roll + turn.mods.moveDelta);
+function startMove(room: RoomState, turn: TurnState, player: Player) {
+  const steps = Math.max(1, sum(turn.dice) + turn.mods.moveDelta);
   turn.stage = "move";
   turn.steps = steps;
   turn.remaining = steps;
@@ -649,10 +682,9 @@ export function roll(room: RoomState, playerId: string): RoomState {
   const { r, player, turn } = actorTurn(room, playerId, ["start"]);
 
   if (player.cave) {
-    const d = die();
-    turn.dice = [d];
-    player.cave.total += d;
-    r.log.push({ type: "caveRoll", playerId, roll: d, total: player.cave.total });
+    turn.dice = rollDice(DICE_COUNT);
+    player.cave.total += sum(turn.dice);
+    r.log.push({ type: "caveRoll", playerId, roll: sum(turn.dice), total: player.cave.total });
     if (player.cave.total < r.settings.caveThreshold) {
       endTurn(r);
       return r;
@@ -669,21 +701,22 @@ export function roll(room: RoomState, playerId: string): RoomState {
   }
 
   if (turn.mods.doubleDice) {
-    turn.dice = [die(), die()];
+    // Ruins "選べる運命": roll one extra die, then drop the one you don't want.
+    turn.dice = rollDice(DICE_COUNT + 1);
     turn.stage = "chooseDie";
     return r;
   }
-  turn.dice = [die()];
-  startMove(r, turn, player, turn.dice[0]);
+  turn.dice = rollDice(DICE_COUNT);
+  startMove(r, turn, player);
   return r;
 }
 
 export function chooseDie(room: RoomState, playerId: string, index: number): RoomState {
   const { r, player, turn } = actorTurn(room, playerId, ["chooseDie"]);
-  const value = turn.dice[index];
-  if (value === undefined) throw new GameError("サイコロを選んでください");
-  turn.dice = [value];
-  startMove(r, turn, player, value);
+  // `index` is the die to leave out.
+  if (turn.dice[index] === undefined) throw new GameError("使わないサイコロを選んでください");
+  turn.dice = turn.dice.filter((_, i) => i !== index);
+  startMove(r, turn, player);
   return r;
 }
 

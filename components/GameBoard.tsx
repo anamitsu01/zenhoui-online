@@ -186,6 +186,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       </aside>
 
       <SetResultBanner room={room} />
+      <ItemPickups items={me.items} />
     </div>
   );
 }
@@ -728,6 +729,57 @@ function Legend() {
           {label}
         </span>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// "You got an item!"
+
+/**
+ * Pops up each item as it's picked up (chest or cave). Items are only ever
+ * appended on pickup and removed on use, so anything past the previously
+ * seen count is new. Nothing pops on first load / reconnect.
+ */
+function ItemPickups({ items }: { items: ItemKind[] }) {
+  const key = items.join(",");
+  const [seen, setSeen] = useState({ key, count: items.length });
+  const [queue, setQueue] = useState<ItemKind[]>([]);
+  if (seen.key !== key) {
+    if (items.length > seen.count) setQueue((q) => [...q, ...items.slice(seen.count)]);
+    setSeen({ key, count: items.length });
+  }
+  if (!queue.length) return null;
+  return <ItemGotPopup item={queue[0]} more={queue.length - 1} onClose={() => setQueue((q) => q.slice(1))} />;
+}
+
+function ItemGotPopup({ item, more, onClose }: { item: ItemKind; more: number; onClose: () => void }) {
+  const def = ITEM_BY_ID[item];
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div
+        className="zh-pop w-full max-w-xs rounded-2xl border-2 border-lamp bg-panel p-6 text-center shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-xs tracking-[0.3em] text-lamp/80">GET ITEM</p>
+        <p className="mb-3 font-bold text-lamp-light">アイテムを手に入れた!</p>
+        <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-2xl bg-white/[0.06] text-6xl">{def.icon}</div>
+        <p className="text-2xl font-black">{def.name}</p>
+        <p className="mt-2 text-sm text-white/80">{def.description}</p>
+        <p className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-white/50">
+          自分の手番の最初(サイコロを振る前)に使えます。最大{MAX_ITEMS}個まで持てます。
+        </p>
+        <button onClick={onClose} className="mt-4 w-full rounded-full bg-lamp px-6 py-2.5 font-bold text-black hover:bg-lamp-light">
+          OK{more > 0 && `(あと${more}個)`}
+        </button>
+      </div>
     </div>
   );
 }

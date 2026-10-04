@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0f15;
+  --foreground: #eef2f6;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* Explorer's lantern: amber accent for buttons, highlights and headings */
+  --color-lamp: #f0b43c;
+  --color-lamp-light: #f7c964;
+  --color-lamp-deep: #5a4113;
+  --color-panel: #121a23;
+  --color-ink: #eef2f6;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background:
+    radial-gradient(ellipse at top, rgba(240, 180, 60, 0.1), transparent 60%),
+    var(--background);
+  background-attachment: fixed;
+  color: var(--foreground);
+}
+
+/* Dice tumble when a new roll comes in. */
+@keyframes zh-roll {
+  0% {
+    transform: rotate(-200deg) scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: rotate(15deg) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(0) scale(1);
+  }
+}
+.zh-roll {
+  animation: zh-roll 0.45s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+/* The piece whose turn it is breathes. */
+@keyframes zh-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(240, 180, 60, 0.9);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(240, 180, 60, 0);
+  }
+}
+.zh-pulse {
+  animation: zh-pulse 1.2s ease-in-out infinite;
+}
+
+/* Set result banner slides through. */
+@keyframes zh-banner {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.96);
+  }
+  12%,
+  85% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.zh-banner {
+  animation: zh-banner 3.2s ease-out both;
+}

@@ -7,6 +7,7 @@ import { legalSteps, neighbors4 } from "@/lib/gameEngine";
 import type { ClientToServerEvents } from "@/lib/socketEvents";
 import type { ItemKind, Player, PublicEvent, RoomState, TurnState } from "@/lib/types";
 import { colorName, MAX_ITEMS } from "@/lib/types";
+import { EventCutIns, MuteToggle, shakeCount, SoundDirector } from "./BoardEffects";
 import CaveIcon from "./CaveIcon";
 import MapGrid, { type HighlightKind } from "./MapGrid";
 
@@ -155,6 +156,8 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
             {room.size}×{room.size}マス
             <span className="ml-2 inline-block h-2 w-4 rounded-sm align-middle" style={{ background: "#2dd4bf" }} /> 盤面の端
           </span>
+          <span className="flex gap-2">
+          <MuteToggle />
           {me.pos >= 0 && room.phase === "playing" && (
             <button
               onClick={() => setRecenter((n) => n + 1)}
@@ -163,6 +166,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
               📍 自分のコマへ
             </button>
           )}
+          </span>
         </div>
         <MapGrid
           focusCell={me.pos}
@@ -172,6 +176,9 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           mode={room.settings.mode}
           players={room.players}
           actorId={turn?.playerId ?? null}
+          remaining={turn?.stage === "move" ? turn.remaining : null}
+          followTight={myTurn && turn?.stage === "move"}
+          shakeKey={shakeCount(room)}
           path={turn?.path ?? []}
           locked={room.locked}
           highlights={highlights}
@@ -186,6 +193,8 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       </aside>
 
       <SetResultBanner room={room} />
+      <SoundDirector room={room} viewerId={viewerId} />
+      <EventCutIns room={room} viewerId={viewerId} />
       <ItemPickups items={me.items} />
     </div>
   );
@@ -485,13 +494,28 @@ const PIPS: Record<number, [number, number][]> = {
 
 function Die({ value, size = "md" }: { value: number; size?: "md" | "lg" }) {
   const dim = size === "lg" ? "h-16 w-16 p-2.5" : "h-11 w-11 p-1.5";
+  // Flick through random faces for a moment, then land on the real roll.
+  const [face, setFace] = useState((value % 6) + 1);
+  useEffect(() => {
+    let ticks = 0;
+    const t = setInterval(() => {
+      ticks++;
+      if (ticks >= 7) {
+        setFace(value);
+        clearInterval(t);
+      } else {
+        setFace(1 + Math.floor(Math.random() * 6));
+      }
+    }, 55);
+    return () => clearInterval(t);
+  }, [value]);
   return (
     <span className={`zh-roll grid grid-cols-3 grid-rows-3 rounded-xl bg-ink shadow-lg ${dim}`}>
       {Array.from({ length: 9 }, (_, k) => {
-        const on = PIPS[value]?.some(([x, y]) => x === k % 3 && y === Math.floor(k / 3));
+        const on = PIPS[face]?.some(([x, y]) => x === k % 3 && y === Math.floor(k / 3));
         return (
           <span key={k} className="flex items-center justify-center">
-            {on && <span className={`rounded-full ${value === 1 ? "h-[70%] w-[70%] bg-red-600" : "h-[62%] w-[62%] bg-black"}`} />}
+            {on && <span className={`rounded-full ${face === 1 ? "h-[70%] w-[70%] bg-red-600" : "h-[62%] w-[62%] bg-black"}`} />}
           </span>
         );
       })}

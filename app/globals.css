@@ -95,3 +95,234 @@ body {
 .zh-pop {
   animation: zh-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
 }
+
+/* ---------------------------------------------------------------------------
+   Board life: pieces hop, paint splats, captures flood in, fog lifts. */
+
+/* A piece hops from cell to cell (the cell-to-cell glide is a CSS transition). */
+@keyframes zh-hop {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  45% {
+    transform: translateY(-38%) scale(0.94, 1.08);
+  }
+  80% {
+    transform: translateY(0) scale(1.14, 0.84);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+.zh-hop {
+  transform-origin: 50% 100%;
+  animation: zh-hop 0.24s ease-out both;
+}
+
+@keyframes zh-shadow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  45% {
+    transform: scale(0.55);
+    opacity: 0.5;
+  }
+}
+.zh-shadow {
+  animation: zh-shadow 0.24s ease-out both;
+}
+
+/* Standing pieces breathe a little. */
+@keyframes zh-idle {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  50% {
+    transform: translateY(-3%) scaleY(1.03);
+  }
+}
+.zh-idle {
+  transform-origin: 50% 100%;
+  animation: zh-idle 1.8s ease-in-out infinite;
+}
+
+@keyframes zh-ring {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.45;
+  }
+}
+.zh-ring {
+  animation: zh-ring 1.1s ease-in-out infinite;
+}
+
+@keyframes zh-dust {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scaleX(0.5);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scaleX(1.4) translateY(-20%);
+  }
+}
+.zh-dust {
+  animation: zh-dust 0.4s ease-out 0.17s both;
+}
+
+@keyframes zh-bubble {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-12%);
+  }
+}
+.zh-bubble {
+  animation: zh-bubble 1s ease-in-out infinite;
+}
+
+/* Paint lands with a splat. */
+@keyframes zh-splat {
+  0% {
+    transform: scale(0.15);
+    border-radius: 50%;
+    filter: brightness(1.8);
+  }
+  60% {
+    transform: scale(1.18);
+    border-radius: 35%;
+  }
+  100% {
+    transform: scale(1);
+    border-radius: 0;
+    filter: brightness(1);
+  }
+}
+.zh-splat {
+  animation: zh-splat 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+
+/* Captured ground floods in as a wave. */
+@keyframes zh-fill {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+    filter: brightness(2.2);
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+.zh-fill {
+  animation: zh-fill 0.38s ease-out both;
+}
+
+/* Fog drifts off revealed cells. */
+@keyframes zh-unfog {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+.zh-unfog {
+  z-index: 1;
+  border-radius: 30%;
+  animation: zh-unfog 0.7s ease-out both;
+}
+
+/* Rivers flow. */
+@keyframes zh-river {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 28px 0;
+  }
+}
+.zh-river {
+  background-color: #1f5a8f;
+  background-image: repeating-linear-gradient(115deg, transparent 0 7px, rgba(255, 255, 255, 0.13) 7px 9px, transparent 9px 14px);
+  background-size: 28px 28px;
+  animation: zh-river 2.4s linear infinite;
+}
+
+/* Trees sway. */
+@keyframes zh-sway {
+  from {
+    transform: rotate(-4deg);
+  }
+  to {
+    transform: rotate(4deg);
+  }
+}
+.zh-sway {
+  display: inline-block;
+  transform-origin: 50% 90%;
+  animation: zh-sway 2.6s ease-in-out infinite alternate;
+}
+
+/* Event cut-ins: a band sweeps across, text punches in. */
+@keyframes zh-cutin {
+  0% {
+    transform: translateX(-110%);
+  }
+  18%,
+  82% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(110%);
+  }
+}
+@keyframes zh-cutin-text {
+  0% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  25% {
+    transform: scale(0.95);
+    opacity: 1;
+  }
+  32%,
+  100% {
+    transform: scale(1);
+  }
+}
+.zh-cutin {
+  animation: zh-cutin 1.5s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.zh-cutin-text {
+  animation: zh-cutin-text 1.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zh-idle,
+  .zh-ring,
+  .zh-river,
+  .zh-sway,
+  .zh-bubble {
+    animation: none;
+  }
+}

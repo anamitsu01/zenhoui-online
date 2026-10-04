@@ -34,8 +34,11 @@ const FX_MS = 1800;
 /** Above this many simultaneous changes (new game, game-over reveal) skip effects. */
 const FX_LIMIT = 700;
 
-/** step/target are drawn; "any" is clickable without an outline (e.g. scouting anywhere). */
-export type HighlightKind = "step" | "target" | "any";
+/**
+ * step/target are outlined; "line" (the way a step leads, out to the edge) is
+ * faintly lit; "any" is clickable without a mark (e.g. scouting anywhere).
+ */
+export type HighlightKind = "step" | "target" | "line" | "any";
 
 function hash(i: number): number {
   let h = (i + 1) * 2654435761;
@@ -213,7 +216,7 @@ function MapGrid({
         >
           {cells.map((cell, i) => {
             const clickable = highlights.get(i);
-            const hl = clickable === "any" ? undefined : clickable;
+            const hl = clickable === "step" || clickable === "target" ? clickable : undefined;
             const fx = fxByCell.get(i);
             const icon = cell.f ? FEATURE_ICON[cell.f] : TERRAIN_ICON[cell.t];
             const sway = cell.t === "forest" && !cell.f;
@@ -254,6 +257,7 @@ function MapGrid({
                   <span className="zh-unfog absolute inset-0" style={{ background: fx.from, animationDelay: `${fx.delay}ms` }} />
                 )}
                 {hl && <span className="absolute inset-[30%] rounded-full bg-lamp/40" />}
+                {clickable === "line" && <span className="absolute inset-[38%] rounded-full bg-lamp/30" />}
               </button>
             );
           })}

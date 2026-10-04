@@ -19,6 +19,23 @@ export type Act = <E extends keyof ClientToServerEvents>(
 /** What a click on the map currently means (besides stepping). */
 type Targeting = { kind: "item"; index: number } | { kind: "bridge" } | null;
 
+/**
+ * Turns a tap anywhere on the board into a one-cell step: a tap on the line
+ * running out from the piece (same row/column) moves that way, and so does a
+ * tap that's clearly more horizontal than vertical (or vice versa).
+ * Returns the cell to step to, or null when the tap is ambiguous or that way is blocked.
+ */
+function directionalStep(size: number, from: number, tapped: number, steps: number[]): number | null {
+  if (steps.includes(tapped)) return tapped;
+  const dx = (tapped % size) - (from % size);
+  const dy = Math.floor(tapped / size) - Math.floor(from / size);
+  let step: number;
+  if (dx !== 0 && Math.abs(dx) >= 2 * Math.abs(dy)) step = from + Math.sign(dx);
+  else if (dy !== 0 && Math.abs(dy) >= 2 * Math.abs(dx)) step = from + Math.sign(dy) * size;
+  else return null;
+  return steps.includes(step) ? step : null;
+}
+
 export default function GameBoard({ room, viewerId, act }: { room: RoomState; viewerId: string; act: Act }) {
   const me = room.players.find((p) => p.id === viewerId)!;
   const turn = room.turn;
@@ -65,8 +82,19 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       if (def?.target === "riverCell") {
         for (const c of neighbors4(room.size, me.pos)) if (room.cells[c].t === "river") map.set(c, "target");
       }
-    } else {
-      for (const c of steps) map.set(c, "step");
+    } else if (steps.length) {
+      // Moving: the whole board is tappable (a tap picks a direction, see
+      // directionalStep), and each open direction's line is lit to the edge.
+      room.cells.forEach((_, i) => map.set(i, "any"));
+      for (const c of steps) {
+        map.set(c, "step");
+        const d = c - me.pos;
+        const horizontal = Math.abs(d) === 1;
+        for (let n = c + d; n >= 0 && n < room.cells.length; n += d) {
+          if (horizontal && Math.floor(n / room.size) !== Math.floor(me.pos / room.size)) break;
+          map.set(n, "line");
+        }
+      }
     }
     return map;
   }, [activeTargeting, steps, room, me]);
@@ -80,11 +108,12 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       } else if (activeTargeting?.kind === "item") {
         setTargeting(null);
         run(act("game:useItem", { index: activeTargeting.index, target: cell }));
-      } else if (steps.includes(cell)) {
-        run(act("game:step", { cell }));
+      } else {
+        const target = directionalStep(room.size, me.pos, cell, steps);
+        if (target !== null) run(act("game:step", { cell: target }));
       }
     },
-    [busy, activeTargeting, steps, run, act]
+    [busy, activeTargeting, steps, run, act, room.size, me.pos]
   );
 
   // Arrow keys / WASD walk the piece.
@@ -431,7 +460,7 @@ function ActionPanel({
         </p>
       </div>
       <ModChips mods={turn.mods} />
-      <p className="w-full text-xs text-white/45 sm:w-auto">光っているマスをクリック(矢印キー・WASDでも移動)</p>
+      <p className="w-full text-xs text-white/45 sm:w-auto">進みたい方向の点線上をタップ(矢印キー・WASDでも移動)</p>
       {onCave && (
         <SecondaryButton disabled={busy} onClick={() => run(act("game:endMove", { enterCave: true }))}>
           <CaveIcon /> ここで洞窟に入る

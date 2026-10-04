@@ -143,10 +143,12 @@ export function colorName(mode: GameMode, color: number): string {
   return (mode === "teams" ? COLOR_NAMES_TEAMS : COLOR_NAMES_FFA)[color] ?? `色${color + 1}`;
 }
 
+export const BOARD_SIZE_CHOICES = [30, 42, 50, 58, 70];
+
 export function autoBoardSize(playerCount: number): number {
-  if (playerCount <= 4) return 21;
-  if (playerCount <= 6) return 25;
-  return 29;
+  if (playerCount <= 4) return 42;
+  if (playerCount <= 6) return 50;
+  return 58;
 }
 
 export function emptyPending(): PendingEffect {

@@ -184,7 +184,7 @@ export function updateSettings(room: RoomState, requesterId: string, settings: P
   next.conquestPct = clampInt(settings.conquestPct, 50, 100) ?? next.conquestPct;
   next.caveThreshold = clampInt(settings.caveThreshold, 3, 30) ?? next.caveThreshold;
   if (settings.boardSize !== undefined) {
-    const b = clampInt(settings.boardSize, 0, 41);
+    const b = clampInt(settings.boardSize, 0, 80);
     if (b !== undefined) next.boardSize = b === 0 ? 0 : Math.max(15, b);
   }
   return { ...room, settings: next };
@@ -270,7 +270,7 @@ function tryGenerateMap(size: number, bases: number[]): GeneratedMap | null {
   }
 
   const flagCount = bases.length > 2 ? 4 + rand(2) : 3 + rand(3);
-  if (place("flag", flagCount, 5, 5) < flagCount) return null;
+  if (place("flag", flagCount, 5, Math.max(5, Math.round(size / 5))) < flagCount) return null;
   place("cave", Math.round(n / 150), 4, 4);
   place("ruins", Math.round(n / 90), 4, 3);
   place("chest", Math.round(n / 60), 3, 2);

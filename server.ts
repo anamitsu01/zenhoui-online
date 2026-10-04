@@ -110,6 +110,9 @@ app.prepare().then(() => {
   const httpServer = createServer(handle);
   const io = new Server<ClientToServerEvents, ServerToClientEvents, object, SocketData>(httpServer, {
     cors: { origin: "*" },
+    // Room updates carry the whole board (thousands of cells of very repetitive
+    // JSON), which compresses to a small fraction.
+    perMessageDeflate: { threshold: 1024 },
   });
 
   setInterval(pruneStaleRooms, 30 * 60 * 1000).unref();

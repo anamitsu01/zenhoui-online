@@ -30,6 +30,9 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
   const [errorState, setErrorState] = useState<{ key: string; message: string | null }>({ key: "", message: null });
   const error = errorState.key === turnKey ? errorState.message : null;
   const activeTargeting = myTurn && turn?.stage === "start" ? targeting : null;
+  // Re-center the map on my piece when my turn starts, or when asked.
+  const [recenter, setRecenter] = useState(0);
+  const recenterKey = recenter * 100000 + (myTurn ? room.set * 100 + room.turnIndex : 0);
 
   const run = useCallback(
     async (p: Promise<string | null>) => {
@@ -147,7 +150,23 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
             </div>
           )}
         </section>
+        <div className="flex items-center justify-between gap-2 px-1 text-xs text-white/45">
+          <span>
+            {room.size}×{room.size}マス
+            <span className="ml-2 inline-block h-2 w-4 rounded-sm align-middle" style={{ background: "#2dd4bf" }} /> 盤面の端
+          </span>
+          {me.pos >= 0 && room.phase === "playing" && (
+            <button
+              onClick={() => setRecenter((n) => n + 1)}
+              className="rounded-full border border-white/15 px-3 py-1 text-white/70 hover:bg-white/10"
+            >
+              📍 自分のコマへ
+            </button>
+          )}
+        </div>
         <MapGrid
+          focusCell={me.pos}
+          recenterKey={recenterKey}
           size={room.size}
           cells={room.cells}
           mode={room.settings.mode}

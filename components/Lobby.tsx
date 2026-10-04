@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { colorHex, withAlpha } from "@/lib/colors";
 import type { Player, RoomSettings, RoomState } from "@/lib/types";
-import { autoBoardSize, COLOR_NAMES_TEAMS, MAX_FFA_PLAYERS, MAX_PLAYERS, MIN_PLAYERS } from "@/lib/types";
+import { autoBoardSize, BOARD_SIZE_CHOICES, COLOR_NAMES_TEAMS, MAX_FFA_PLAYERS, MAX_PLAYERS, MIN_PLAYERS } from "@/lib/types";
 import RulesPanel from "./RulesPanel";
 
 export default function Lobby({
@@ -192,7 +192,7 @@ export default function Lobby({
             className="rounded-lg border border-white/10 bg-panel px-2 py-1.5"
           >
             <option value={0}>自動({autoBoardSize(count)}×{autoBoardSize(count)})</option>
-            {[15, 21, 25, 29, 35].map((s) => (
+            {BOARD_SIZE_CHOICES.map((s) => (
               <option key={s} value={s}>
                 {s}×{s}
               </option>

@@ -14,6 +14,8 @@ import type { Terrain } from "./types";
 export function generateTerrain(size: number, bases: number[]): Terrain[] | null {
   const n = size * size;
   const t: Terrain[] = Array(n).fill("plain");
+  // Scale factor relative to the original 25×25 design.
+  const k = size / 25;
   const X = (i: number) => i % size;
   const Y = (i: number) => Math.floor(i / size);
   const at = (x: number, y: number) => y * size + x;
@@ -57,7 +59,7 @@ export function generateTerrain(size: number, bases: number[]): Terrain[] | null
     [0, -1],
     [1, -1],
   ];
-  const ranges = Math.max(2, Math.round(size / 8));
+  const ranges = Math.max(2, Math.round((size / 8) * k));
   for (let r = 0; r < ranges; r++) {
     let x = 0,
       y = 0;
@@ -83,7 +85,7 @@ export function generateTerrain(size: number, bases: number[]): Terrain[] | null
       y += DIRS8[d][1];
     }
   }
-  const peaks = Math.round(size / 5);
+  const peaks = Math.round((size / 5) * k);
   for (let p = 0; p < peaks; p++) {
     const i = rand(n);
     if (open(i, 3) && t[i] === "plain") t[i] = "mountain";
@@ -148,19 +150,19 @@ export function generateTerrain(size: number, bases: number[]): Terrain[] | null
     for (const c of path) t[c] = "river";
     return true;
   }
-  const riverCount = size >= 25 ? 2 : 1;
+  const riverCount = Math.max(1, Math.round(size / 16));
   let rivers = 0;
-  for (let tries = 0; tries < 60 && rivers < riverCount; tries++) if (carveRiver()) rivers++;
+  for (let tries = 0; tries < 30 * riverCount; tries++) if (rivers < riverCount && carveRiver()) rivers++;
   if (rivers === 0) return null;
 
   // --- Forests -------------------------------------------------------------
   const forestGoal = Math.round(n * 0.14);
   let forest = 0;
-  for (let guard = 0; forest < forestGoal && guard < 600; guard++) {
+  for (let guard = 0; forest < forestGoal && guard < n; guard++) {
     const seed = rand(n);
     // New patches start apart from existing ones so they don't merge into one mass.
     if (t[seed] !== "plain" || !open(seed, 2) || nb8(seed).some((c) => t[c] === "forest")) continue;
-    const target = 5 + rand(10);
+    const target = Math.round((5 + rand(10)) * k);
     const patch = new Set([seed]);
     t[seed] = "forest";
     forest++;
@@ -192,7 +194,7 @@ export function generateTerrain(size: number, bases: number[]): Terrain[] | null
   const band = Math.max(2, Math.round(size * 0.12));
   const glacierGoal = Math.round(n * 0.04);
   let glacier = 0;
-  for (let guard = 0; glacier < glacierGoal && guard < 100; guard++) {
+  for (let guard = 0; glacier < glacierGoal && guard < 100 * k; guard++) {
     // Seed on the very edge, most often near the corners.
     const edgeCells: [number, number][] = [];
     for (let i = 0; i < n; i++) {
@@ -202,7 +204,7 @@ export function generateTerrain(size: number, bases: number[]): Terrain[] | null
     }
     const seed = weighted(edgeCells);
     if (seed === undefined) break;
-    const target = 4 + rand(8);
+    const target = Math.round((4 + rand(8)) * k);
     const sheet = new Set([seed]);
     t[seed] = "glacier";
     glacier++;

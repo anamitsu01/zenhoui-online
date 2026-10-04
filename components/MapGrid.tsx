@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { colorHex, withAlpha } from "@/lib/colors";
 import type { Cell, GameMode, Player, Terrain } from "@/lib/types";
 import CaveIcon from "./CaveIcon";
@@ -23,6 +23,11 @@ const TERRAIN_ICON: Partial<Record<Terrain, string>> = {
 
 const FEATURE_ICON = { ruins: "🏛️", cave: <CaveIcon size="1.45em" />, chest: "🎁", flag: "🚩" } as const;
 
+/** Cells never shrink below this, so big boards scroll instead of becoming untappable. */
+const MIN_CELL_PX = 16;
+/** The board's outer frame: a color used nowhere else, so the edge of the world is unmistakable. */
+const EDGE_COLOR = "#2dd4bf";
+
 /** step/target are drawn; "any" is clickable without an outline (e.g. scouting anywhere). */
 export type HighlightKind = "step" | "target" | "any";
 
@@ -36,19 +41,64 @@ interface Props {
   locked: number[];
   highlights: Map<number, HighlightKind>;
   onCellClick: (cell: number) => void;
+  /** Keep this cell in view (scrolls when it nears the edge of the visible area). */
+  focusCell: number;
+  /** Changing this re-centers on focusCell. */
+  recenterKey: number;
 }
 
-function MapGrid({ size, cells, mode, players, actorId, path, locked, highlights, onCellClick }: Props) {
+function MapGrid({ size, cells, mode, players, actorId, path, locked, highlights, onCellClick, focusCell, recenterKey }: Props) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // Scroll the viewport (never the page) so the focused cell is visible.
+  // A re-center request always centers; otherwise only scroll when the cell
+  // gets within a couple of cells of the visible edge.
+  const lastRecenter = useRef(-1);
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const cell = gridRef.current?.children[focusCell] as HTMLElement | undefined;
+    if (!viewport || !cell || focusCell < 0) return;
+    const center = lastRecenter.current !== recenterKey;
+    lastRecenter.current = recenterKey;
+    const vr = viewport.getBoundingClientRect();
+    const cr = cell.getBoundingClientRect();
+    const vx = viewport.scrollLeft;
+    const vy = viewport.scrollTop;
+    // Cell position in the viewport's scrollable content.
+    const x = cr.left - vr.left + vx;
+    const y = cr.top - vr.top + vy;
+    const w = cr.width;
+    const margin = w * 3;
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    const outside = x < vx + margin || x + w > vx + vw - margin || y < vy + margin || y + w > vy + vh - margin;
+    if (center || outside) {
+      viewport.scrollTo({ left: x - vw / 2 + w / 2, top: y - vh / 2 + w / 2, behavior: center ? "auto" : "smooth" });
+    }
+  }, [focusCell, recenterKey]);
+
   const pieceAt = new Map<number, Player>();
   for (const p of players) if (p.pos >= 0 && (!pieceAt.has(p.pos) || p.id === actorId)) pieceAt.set(p.pos, p);
   const pathSet = new Set(path.slice(1));
   const lockedSet = new Set(locked);
 
   return (
-    <div className="mx-auto w-full" style={{ containerType: "inline-size", maxWidth: "max(20rem, calc(100dvh - 2rem))" }}>
+    <div ref={viewportRef} className="relative w-full overflow-auto rounded-lg" style={{ maxHeight: "calc(100dvh - 5rem)" }}>
       <div
-        className="grid w-full select-none overflow-hidden rounded-lg border border-white/10"
+        className="mx-auto"
         style={{
+          containerType: "inline-size",
+          // Fit the screen when cells stay big enough; otherwise grow and scroll.
+          width: `max(min(100%, calc(100dvh - 5rem)), ${size * MIN_CELL_PX + 6}px)`,
+        }}
+      >
+      <div
+        ref={gridRef}
+        className="relative grid w-full select-none"
+        style={{
+          border: `3px solid ${EDGE_COLOR}`,
+          boxShadow: `0 0 0 1px #000, 0 0 14px ${EDGE_COLOR}55`,
           gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))`,
           fontSize: `calc(100cqw / ${size} * 0.58)`,
           gap: "1px",
@@ -90,6 +140,7 @@ function MapGrid({ size, cells, mode, players, actorId, path, locked, highlights
             </button>
           );
         })}
+      </div>
       </div>
     </div>
   );

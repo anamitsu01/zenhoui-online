@@ -27,6 +27,8 @@ export interface Player {
   name: string;
   connected: boolean;
   isHost: boolean;
+  /** Server-driven test player (only in test rooms). */
+  isBot: boolean;
   /** Team / color index. In ffa mode every player has their own. */
   color: number;
   /** Order within the color (1, 2, 3...), used as the piece label. */
@@ -93,6 +95,8 @@ export interface ScoringResult {
 
 export interface RoomState {
   code: string;
+  /** Test room (opened with TEST_ROOM_CODE): the host can add bots that play automatically. */
+  isTest: boolean;
   phase: "lobby" | "playing" | "gameover";
   players: Player[];
   settings: RoomSettings;
@@ -121,6 +125,10 @@ export interface RoomState {
   winReason: "score" | "conquest" | null;
   createdAt: number;
 }
+
+/** Entering this room code opens a fresh private test room with bots. */
+export const TEST_ROOM_CODE = "ZZZZZ";
+export const TEST_ROOM_BOTS = 3;
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;

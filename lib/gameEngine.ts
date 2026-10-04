@@ -15,6 +15,7 @@ import {
   RoomSettings,
   RoomState,
   Terrain,
+  TEST_ROOM_CODE,
   TurnState,
   VISION,
 } from "./types";
@@ -44,8 +45,11 @@ function randomItem(): ItemKind {
 
 function makeRoomCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 5; i++) code += alphabet[rand(alphabet.length)];
+  let code = TEST_ROOM_CODE;
+  while (code === TEST_ROOM_CODE) {
+    code = "";
+    for (let i = 0; i < 5; i++) code += alphabet[rand(alphabet.length)];
+  }
   return code;
 }
 
@@ -96,12 +100,13 @@ function chebyshev(size: number, a: number, b: number): number {
 // ---------------------------------------------------------------------------
 // Lobby
 
-function newPlayer(id: string, name: string, color: number, isHost: boolean): Player {
+function newPlayer(id: string, name: string, color: number, isHost: boolean, isBot = false): Player {
   return {
     id,
     name,
     connected: true,
     isHost,
+    isBot,
     color,
     number: 0,
     pos: -1,
@@ -112,9 +117,10 @@ function newPlayer(id: string, name: string, color: number, isHost: boolean): Pl
   };
 }
 
-export function createRoom(hostId: string, hostName: string): RoomState {
+export function createRoom(hostId: string, hostName: string, isTest = false): RoomState {
   return {
     code: makeRoomCode(),
+    isTest,
     phase: "lobby",
     players: [newPlayer(hostId, hostName, 0, true)],
     settings: { mode: "teams", targetScore: 15, conquestPct: 75, caveThreshold: 10, boardSize: 0 },
@@ -183,11 +189,42 @@ export function updateSettings(room: RoomState, requesterId: string, settings: P
   return { ...room, settings: next };
 }
 
+// Test rooms: the host can add bots that play automatically (see lib/bot.ts).
+
+export function addBot(room: RoomState, requesterId: string, color?: number): RoomState {
+  const requester = room.players.find((p) => p.id === requesterId);
+  if (!requester?.isHost) throw new GameError("ホストのみがボットを追加できます");
+  if (!room.isTest) throw new GameError("ボットはテスト部屋でのみ使えます");
+  if (room.phase !== "lobby") throw new GameError("ゲーム中はボットを追加できません");
+  if (room.players.length >= MAX_PLAYERS) throw new GameError(`部屋の定員(${MAX_PLAYERS}人)に達しています`);
+  let n = 1;
+  while (room.players.some((p) => p.name === `ボット${n}`)) n++;
+  const id = `bot-${Date.now().toString(36)}-${rand(1e6).toString(36)}`;
+  const team = color === 0 || color === 1 ? color : smallerTeam(room.players);
+  return { ...room, players: [...room.players, newPlayer(id, `ボット${n}`, team, false, true)] };
+}
+
+export function removeBot(room: RoomState, requesterId: string, botId: string): RoomState {
+  const requester = room.players.find((p) => p.id === requesterId);
+  if (!requester?.isHost) throw new GameError("ホストのみがボットを外せます");
+  if (room.phase !== "lobby") throw new GameError("ゲーム中はボットを外せません");
+  if (!room.players.some((p) => p.id === botId && p.isBot)) throw new GameError("ボットが見つかりません");
+  return { ...room, players: room.players.filter((p) => p.id !== botId) };
+}
+
 /** Teams mode: a player switches themselves between 青 and 赤. */
-export function chooseTeam(room: RoomState, playerId: string, color: number): RoomState {
+export function chooseTeam(room: RoomState, playerId: string, color: number, targetId?: string): RoomState {
   if (room.phase !== "lobby" && room.phase !== "gameover") throw new GameError("ゲーム中はチームを変更できません");
   if (color !== 0 && color !== 1) throw new GameError("不正なチームです");
-  return { ...room, players: room.players.map((p) => (p.id === playerId ? { ...p, color } : p)) };
+  // The host may also move bots between teams.
+  let moving = playerId;
+  if (targetId && targetId !== playerId) {
+    const requester = room.players.find((p) => p.id === playerId);
+    const target = room.players.find((p) => p.id === targetId);
+    if (!requester?.isHost || !target?.isBot) throw new GameError("ボットのチームはホストのみが変更できます");
+    moving = targetId;
+  }
+  return { ...room, players: room.players.map((p) => (p.id === moving ? { ...p, color } : p)) };
 }
 
 // ---------------------------------------------------------------------------

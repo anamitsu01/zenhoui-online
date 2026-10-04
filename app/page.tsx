@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSocket, saveIdentity } from "@/lib/socketClient";
+import { TEST_ROOM_CODE } from "@/lib/types";
 
 export default function Home() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function Home() {
   const [mode, setMode] = useState<"idle" | "create" | "join">("idle");
   const [error, setError] = useState<string | null>(null);
 
-  function createRoom() {
+  function createRoom(test = false) {
     if (!name.trim()) {
       setError("お名前を入力してください");
       return;
@@ -19,7 +20,7 @@ export default function Home() {
     setMode("create");
     setError(null);
     const socket = getSocket();
-    socket.emit("room:create", { name: name.trim() }, (res) => {
+    socket.emit(test ? "room:createTest" : "room:create", { name: name.trim() }, (res) => {
       setMode("idle");
       if (res.ok) {
         saveIdentity(res.data.room.code, { playerId: res.data.playerId, name: name.trim() });
@@ -34,6 +35,10 @@ export default function Home() {
     const code = joinCode.trim().toUpperCase();
     if (!code) {
       setError("部屋コードを入力してください");
+      return;
+    }
+    if (code === TEST_ROOM_CODE) {
+      createRoom(true);
       return;
     }
     router.push(`/room/${code}`);
@@ -63,7 +68,7 @@ export default function Home() {
         />
 
         <button
-          onClick={createRoom}
+          onClick={() => createRoom()}
           disabled={mode === "create"}
           className="mb-4 w-full rounded-full bg-lamp px-8 py-3 font-bold text-black hover:bg-lamp-light disabled:opacity-40"
         >

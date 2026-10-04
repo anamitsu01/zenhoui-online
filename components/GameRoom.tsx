@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSocket, loadIdentity, saveIdentity, clearIdentity } from "@/lib/socketClient";
 import type { ClientToServerEvents } from "@/lib/socketEvents";
 import type { RoomSettings, RoomState } from "@/lib/types";
+import { TEST_ROOM_CODE } from "@/lib/types";
 import Lobby from "./Lobby";
 import GameBoard from "./GameBoard";
 import ConfirmDialog from "./ConfirmDialog";
@@ -72,6 +73,18 @@ export default function GameRoom({ code }: { code: string }) {
     (name: string) => {
       const socket = getSocket();
       setJoinError(null);
+      // The test code doesn't name a real room: it opens a fresh room with bots.
+      if (code === TEST_ROOM_CODE) {
+        socket.emit("room:createTest", { name }, (res) => {
+          if (res.ok) {
+            saveIdentity(res.data.room.code, { playerId: res.data.playerId, name });
+            router.replace(`/room/${res.data.room.code}`);
+          } else {
+            setJoinError(res.error);
+          }
+        });
+        return;
+      }
       socket.emit("room:join", { code, name }, (res) => {
         if (res.ok) {
           saveIdentity(code, { playerId: res.data.playerId, name });
@@ -83,7 +96,7 @@ export default function GameRoom({ code }: { code: string }) {
         }
       });
     },
-    [code]
+    [code, router]
   );
 
   // Emits a game action and resolves to an error message (or null on success).
@@ -149,7 +162,9 @@ export default function GameRoom({ code }: { code: string }) {
           viewerId={playerId}
           onStart={() => act("room:start", {})}
           onSettings={(settings: Partial<RoomSettings>) => act("room:settings", { settings })}
-          onTeam={(color: number) => act("room:team", { color })}
+          onTeam={(color: number, targetId?: string) => act("room:team", { color, targetId })}
+          onAddBot={(color?: number) => act("room:addBot", { color })}
+          onRemoveBot={(botId: string) => act("room:removeBot", { botId })}
         />
       ) : (
         <GameBoard room={room} viewerId={playerId} act={act} />

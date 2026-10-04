@@ -5,11 +5,14 @@ type Ack = (res: SocketResult<null>) => void;
 // Client -> server
 export interface ClientToServerEvents {
   "room:create": (payload: { name: string }, cb: (res: SocketResult<{ room: RoomState; playerId: string }>) => void) => void;
+  "room:createTest": (payload: { name: string }, cb: (res: SocketResult<{ room: RoomState; playerId: string }>) => void) => void;
   "room:join": (payload: { code: string; name: string }, cb: (res: SocketResult<{ room: RoomState; playerId: string }>) => void) => void;
   "room:rejoin": (payload: { code: string; playerId: string }, cb: (res: SocketResult<{ room: RoomState }>) => void) => void;
   "room:start": (payload: { code: string }, cb: Ack) => void;
   "room:settings": (payload: { code: string; settings: Partial<RoomSettings> }, cb: Ack) => void;
-  "room:team": (payload: { code: string; color: number }, cb: Ack) => void;
+  "room:team": (payload: { code: string; color: number; targetId?: string }, cb: Ack) => void;
+  "room:addBot": (payload: { code: string; color?: number }, cb: Ack) => void;
+  "room:removeBot": (payload: { code: string; botId: string }, cb: Ack) => void;
   "game:roll": (payload: { code: string }, cb: Ack) => void;
   "game:chooseDie": (payload: { code: string; index: number }, cb: Ack) => void;
   "game:step": (payload: { code: string; cell: number }, cb: Ack) => void;

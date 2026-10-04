@@ -12,12 +12,16 @@ export default function Lobby({
   onStart,
   onSettings,
   onTeam,
+  onAddBot,
+  onRemoveBot,
 }: {
   room: RoomState;
   viewerId: string;
   onStart: () => Promise<string | null>;
   onSettings: (settings: Partial<RoomSettings>) => Promise<string | null>;
-  onTeam: (color: number) => Promise<string | null>;
+  onTeam: (color: number, targetId?: string) => Promise<string | null>;
+  onAddBot: (color?: number) => Promise<string | null>;
+  onRemoveBot: (botId: string) => Promise<string | null>;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -53,6 +57,29 @@ export default function Lobby({
   }
 
   const change = async (s: Partial<RoomSettings>) => setError(await onSettings(s));
+  const botControls = room.isTest && isHost;
+  const canAddBot = count < MAX_PLAYERS && (teams || count < MAX_FFA_PLAYERS);
+  const botActions = (p: Player) =>
+    botControls && p.isBot ? (
+      <span className="flex shrink-0 gap-1">
+        {teams && (
+          <button
+            onClick={async () => setError(await onTeam(1 - p.color, p.id))}
+            className="rounded border border-white/15 px-1.5 text-xs text-white/60 hover:bg-white/10"
+            title="もう一方のチームへ移す"
+          >
+            ⇄
+          </button>
+        )}
+        <button
+          onClick={async () => setError(await onRemoveBot(p.id))}
+          className="rounded border border-white/15 px-1.5 text-xs text-white/60 hover:bg-white/10"
+          title="ボットを外す"
+        >
+          ×
+        </button>
+      </span>
+    ) : null;
 
   return (
     <div className="mx-auto w-full max-w-xl text-center">
@@ -70,6 +97,12 @@ export default function Lobby({
           リンクをコピー
         </button>
       </div>
+
+      {room.isTest && (
+        <p className="mb-4 rounded-lg border border-lamp/40 bg-lamp/10 px-4 py-2 text-sm text-lamp-light">
+          🤖 テスト部屋: ボットが自動で相手をします。{isHost && "ボットの追加・削除・チーム移動ができます。"}
+        </p>
+      )}
 
       <div className="mb-4 inline-flex rounded-full border border-white/10 bg-white/5 p-1 text-sm">
         {(["teams", "ffa"] as const).map((m) => (
@@ -98,9 +131,20 @@ export default function Lobby({
                 </p>
                 <ul className="mb-2 space-y-1.5">
                   {members.map((p) => (
-                    <PlayerRow key={p.id} player={p} viewerId={viewerId} />
+                    <li key={p.id} className="flex items-center gap-2">
+                      <PlayerRow player={p} viewerId={viewerId} />
+                      {botActions(p)}
+                    </li>
                   ))}
                 </ul>
+                {botControls && canAddBot && (
+                  <button
+                    onClick={async () => setError(await onAddBot(c))}
+                    className="mb-2 w-full rounded-lg border border-dashed border-white/15 py-1.5 text-sm text-white/60 hover:bg-white/10"
+                  >
+                    + ボットを追加
+                  </button>
+                )}
                 {me && me.color !== c && (
                   <button
                     onClick={async () => setError(await onTeam(c))}
@@ -119,8 +163,19 @@ export default function Lobby({
             <li key={p.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3">
               <span className="h-3 w-3 rounded-full" style={{ background: colorHex("ffa", i) }} />
               <PlayerRow player={p} viewerId={viewerId} />
+              {botActions(p)}
             </li>
           ))}
+          {botControls && canAddBot && (
+            <li>
+              <button
+                onClick={async () => setError(await onAddBot())}
+                className="w-full rounded-lg border border-dashed border-white/15 py-2 text-sm text-white/60 hover:bg-white/10"
+              >
+                + ボットを追加
+              </button>
+            </li>
+          )}
         </ul>
       )}
 
@@ -174,6 +229,7 @@ function PlayerRow({ player, viewerId }: { player: Player; viewerId: string }) {
     <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
       <span className={`truncate ${player.connected ? "" : "opacity-40"}`}>
         {player.name}
+        {player.isBot && " 🤖"}
         {player.isHost && <span className="ml-1 text-xs text-white/40">(ホスト)</span>}
       </span>
       {player.id === viewerId && <span className="shrink-0 text-xs text-white/40">(あなた)</span>}

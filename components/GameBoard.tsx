@@ -596,7 +596,10 @@ function PlayerList({ room, me, actorId }: { room: RoomState; me: Player; actorI
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className={`truncate font-semibold ${p.connected ? "" : "opacity-40"}`}>{p.name}</span>
+                <span className={`truncate font-semibold ${p.connected ? "" : "opacity-40"}`}>
+                  {p.name}
+                  {p.isBot && " 🤖"}
+                </span>
                 {p.id === me.id && <span className="shrink-0 text-[11px] text-white/40">あなた</span>}
                 {!p.connected && <span className="shrink-0 text-[11px] text-red-400">切断中</span>}
                 {acting && <span className="ml-auto shrink-0 text-[11px] text-lamp">手番</span>}

@@ -1,7 +1,9 @@
 import { createServer } from "node:http";
 import next from "next";
 import { Server } from "socket.io";
+import { botAct } from "./lib/bot";
 import {
+  addBot,
   addPlayer,
   backToLobby,
   buildBridge,
@@ -13,6 +15,7 @@ import {
   hostSkip,
   markConnection,
   playAgain,
+  removeBot,
   removePlayer,
   roll,
   sanitizeForPlayer,
@@ -30,6 +33,7 @@ import type {
   SocketResult,
 } from "./lib/socketEvents";
 import type { RoomState } from "./lib/types";
+import { TEST_ROOM_BOTS } from "./lib/types";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT) || 3000;
@@ -46,11 +50,53 @@ function fail<T>(error: string): SocketResult<T> {
   return { ok: false, error };
 }
 
-function broadcastRoom(io: Server<ClientToServerEvents, ServerToClientEvents, object, SocketData>, room: RoomState) {
+type IO = Server<ClientToServerEvents, ServerToClientEvents, object, SocketData>;
+
+function broadcastRoom(io: IO, room: RoomState) {
   saveRoom(room);
   for (const player of room.players) {
+    if (player.isBot) continue;
     io.to(playerRoomTag(room.code, player.id)).emit("room:update", sanitizeForPlayer(room, player.id));
   }
+  scheduleBot(io, room.code);
+}
+
+// Bots in test rooms act on their own after a short pause, one action at a
+// time, and only while a human is still connected to watch.
+const botTimers = new Map<string, NodeJS.Timeout>();
+
+function botToAct(room: RoomState | undefined) {
+  if (!room || room.phase !== "playing" || !room.turn) return undefined;
+  if (!room.players.some((p) => !p.isBot && p.connected)) return undefined;
+  const actor = room.players.find((p) => p.id === room.turn!.playerId);
+  return actor?.isBot ? actor : undefined;
+}
+
+function scheduleBot(io: IO, code: string) {
+  if (botTimers.has(code)) return;
+  const room = getRoom(code);
+  const bot = botToAct(room);
+  if (!room || !bot) return;
+  const delay = room.turn!.stage === "move" ? 300 : 900;
+  botTimers.set(
+    code,
+    setTimeout(() => {
+      botTimers.delete(code);
+      const latest = getRoom(code);
+      if (botToAct(latest)?.id !== bot.id) return scheduleBot(io, code);
+      try {
+        broadcastRoom(io, botAct(latest!, bot.id));
+      } catch (e) {
+        console.error(`bot ${bot.name} in ${code}:`, e);
+        // Don't let a confused bot stall the game: try ending its move/turn.
+        try {
+          broadcastRoom(io, endMove(latest!, bot.id, false));
+        } catch {
+          // leave it; a human action will reschedule
+        }
+      }
+    }, delay)
+  );
 }
 
 function roomTag(code: string) {
@@ -73,6 +119,22 @@ app.prepare().then(() => {
       try {
         const trimmed = (name ?? "").trim().slice(0, 24) || "プレイヤー";
         const room = reserveUniqueCode(() => createRoom(socket.id, trimmed));
+        socket.data.playerId = socket.id;
+        socket.data.roomCode = room.code;
+        socket.join(roomTag(room.code));
+        socket.join(playerRoomTag(room.code, socket.id));
+        saveRoom(room);
+        cb(ok({ room: sanitizeForPlayer(room, socket.id), playerId: socket.id }));
+      } catch (e) {
+        cb(fail(e instanceof Error ? e.message : "不明なエラー"));
+      }
+    });
+
+    socket.on("room:createTest", ({ name }, cb) => {
+      try {
+        const trimmed = (name ?? "").trim().slice(0, 24) || "プレイヤー";
+        let room = reserveUniqueCode(() => createRoom(socket.id, trimmed, true));
+        for (let i = 0; i < TEST_ROOM_BOTS; i++) room = addBot(room, socket.id);
         socket.data.playerId = socket.id;
         socket.data.roomCode = room.code;
         socket.join(roomTag(room.code));
@@ -144,8 +206,16 @@ app.prepare().then(() => {
       withRoom(code, (room) => updateSettings(room, socket.data.playerId ?? socket.id, settings), cb);
     });
 
-    socket.on("room:team", ({ code, color }, cb) => {
-      withRoom(code, (room) => chooseTeam(room, socket.data.playerId ?? socket.id, color), cb);
+    socket.on("room:team", ({ code, color, targetId }, cb) => {
+      withRoom(code, (room) => chooseTeam(room, socket.data.playerId ?? socket.id, color, targetId), cb);
+    });
+
+    socket.on("room:addBot", ({ code, color }, cb) => {
+      withRoom(code, (room) => addBot(room, socket.data.playerId ?? socket.id, color), cb);
+    });
+
+    socket.on("room:removeBot", ({ code, botId }, cb) => {
+      withRoom(code, (room) => removeBot(room, socket.data.playerId ?? socket.id, botId), cb);
     });
 
     socket.on("game:roll", ({ code }, cb) => {

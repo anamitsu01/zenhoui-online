@@ -34,6 +34,7 @@ export const RUINS_EFFECTS: { roll: number; name: string; description: string }[
   { roll: 6, name: "二つの運命", description: "次のターン、サイコロを2個振って好きな方を使う" },
 ];
 
+/** icon "cave" is drawn with CaveIcon (no emoji reads as a cave). */
 export const TERRAIN_INFO: { icon: string; name: string; description: string }[] = [
   { icon: "⛰️", name: "山", description: "通れない" },
   { icon: "🌲", name: "森", description: "入るのに移動力を1余分に使う(目が1だと入れない)" },
@@ -41,7 +42,7 @@ export const TERRAIN_INFO: { icon: string; name: string; description: string }[]
   { icon: "🌉", name: "橋", description: "誰でも通れる" },
   { icon: "🧊", name: "氷河", description: "通れるが、ずっと白のまま塗れない" },
   { icon: "🏛️", name: "遺跡", description: "踏むとサイコロを振り、次のターンに効果(1回で崩れる)" },
-  { icon: "🕳️", name: "洞窟", description: "入ると次のターンから毎ターン振った目を合計し、規定値以上でアイテムを選んで脱出。超えた分だけ進める" },
+  { icon: "cave", name: "洞窟", description: "入ると次のターンから毎ターン振った目を合計し、規定値以上でアイテムを選んで脱出。超えた分だけ進める" },
   { icon: "🎁", name: "宝箱", description: "踏むとアイテムを1個獲得" },
   { icon: "🚩", name: "フラッグ", description: "自分の色にしていれば支配。見つけると全員に位置が公開される" },
 ];

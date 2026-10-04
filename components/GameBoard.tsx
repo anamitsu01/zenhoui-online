@@ -7,6 +7,7 @@ import { legalSteps, neighbors4 } from "@/lib/gameEngine";
 import type { ClientToServerEvents } from "@/lib/socketEvents";
 import type { ItemKind, Player, PublicEvent, RoomState, TurnState } from "@/lib/types";
 import { colorName, MAX_ITEMS } from "@/lib/types";
+import CaveIcon from "./CaveIcon";
 import MapGrid, { type HighlightKind } from "./MapGrid";
 
 export type Act = <E extends keyof ClientToServerEvents>(
@@ -404,7 +405,7 @@ function ActionPanel({
       <p className="w-full text-xs text-white/45 sm:w-auto">光っているマスをクリック(矢印キー・WASDでも移動)</p>
       {onCave && (
         <SecondaryButton disabled={busy} onClick={() => run(act("game:endMove", { enterCave: true }))}>
-          🕳️ ここで洞窟に入る
+          <CaveIcon /> ここで洞窟に入る
         </SecondaryButton>
       )}
       {!canStep && (
@@ -605,7 +606,7 @@ function PlayerList({ room, me, actorId }: { room: RoomState; me: Player; actorI
                 {acting && <span className="ml-auto shrink-0 text-[11px] text-lamp">手番</span>}
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-white/50">
-                {p.cave && <span>🕳️ 洞窟中({p.cave.total}/{room.settings.caveThreshold})</span>}
+                {p.cave && <span><CaveIcon /> 洞窟中({p.cave.total}/{room.settings.caveThreshold})</span>}
                 {ally
                   ? p.items.map((it, k) => (
                       <span key={k} title={`${ITEM_BY_ID[it].name}: ${ITEM_BY_ID[it].description}`}>
@@ -639,7 +640,7 @@ function eventText(room: RoomState, e: PublicEvent): string {
       return `${name(e.playerId)}が🏛️遺跡を踏んだ: ${e.roll}「${r?.name}」${r?.description}`;
     }
     case "caveEnter":
-      return `${name(e.playerId)}が🕳️洞窟に入った`;
+      return `${name(e.playerId)}が洞窟に入った`;
     case "caveRoll":
       return `${name(e.playerId)}(洞窟): 🎲${e.roll} 合計${e.total}`;
     case "caveExit":
@@ -686,13 +687,13 @@ function EventLog({ room }: { room: RoomState }) {
 }
 
 function Legend() {
-  const items: [string, string][] = [
+  const items: [React.ReactNode, string][] = [
     ["⛰️", "山(通行不可)"],
     ["🌲", "森(+1コスト)"],
     ["#1f5a8f", "川(橋で渡る)"],
     ["#d7ecf5", "氷河(塗れない)"],
     ["🏛️", "遺跡"],
-    ["🕳️", "洞窟"],
+    [<CaveIcon key="cave" />, "洞窟"],
     ["🎁", "宝箱"],
     ["🚩", "フラッグ"],
   ];
@@ -700,7 +701,11 @@ function Legend() {
     <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 text-xs text-white/45">
       {items.map(([icon, label]) => (
         <span key={label} className="inline-flex items-center gap-1">
-          {icon.startsWith("#") ? <span className="inline-block h-3 w-3 rounded-sm" style={{ background: icon }} /> : icon}
+          {typeof icon === "string" && icon.startsWith("#") ? (
+            <span className="inline-block h-3 w-3 rounded-sm" style={{ background: icon }} />
+          ) : (
+            icon
+          )}
           {label}
         </span>
       ))}

@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { colorHex, withAlpha } from "@/lib/colors";
 import type { Cell, GameMode, Player, Terrain } from "@/lib/types";
+import CaveIcon from "./CaveIcon";
 
 const TERRAIN_BG: Record<Terrain, string> = {
   plain: "#1c2733",
@@ -20,7 +21,7 @@ const TERRAIN_ICON: Partial<Record<Terrain, string>> = {
   bridge: "🌉",
 };
 
-const FEATURE_ICON = { ruins: "🏛️", cave: "🕳️", chest: "🎁", flag: "🚩" } as const;
+const FEATURE_ICON = { ruins: "🏛️", cave: <CaveIcon size="1.45em" />, chest: "🎁", flag: "🚩" } as const;
 
 /** step/target are drawn; "any" is clickable without an outline (e.g. scouting anywhere). */
 export type HighlightKind = "step" | "target" | "any";
@@ -103,7 +104,7 @@ function Piece({ player, mode, active }: { player: Player; mode: GameMode; activ
       style={{ background: colorHex(mode, player.color), fontSize: "0.85em" }}
       title={player.name}
     >
-      {player.cave ? "🕳" : mode === "teams" ? player.number : player.name.slice(0, 1)}
+      {player.cave ? <CaveIcon /> : mode === "teams" ? player.number : player.name.slice(0, 1)}
     </span>
   );
 }

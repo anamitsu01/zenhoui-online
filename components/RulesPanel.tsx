@@ -1,4 +1,5 @@
 import { ITEMS, RUINS_EFFECTS, TERRAIN_INFO } from "@/lib/content";
+import CaveIcon from "./CaveIcon";
 
 export default function RulesPanel({ defaultOpen = false }: { defaultOpen?: boolean }) {
   return (
@@ -41,7 +42,7 @@ export function RulesContent({ className = "" }: { className?: string }) {
         <ul className="mt-2 space-y-1">
           {TERRAIN_INFO.map((t) => (
             <li key={t.name}>
-              {t.icon} <b className="text-ink">{t.name}</b>: {t.description}
+              {t.icon === "cave" ? <CaveIcon /> : t.icon} <b className="text-ink">{t.name}</b>: {t.description}
             </li>
           ))}
         </ul>

@@ -327,19 +327,3 @@ body {
   }
 }
 
-/* Fresh (wet) paint: a glossy sheen that opponents can't paint over yet. */
-@keyframes zh-wet {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.95;
-  }
-}
-.zh-wet {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.38) 0 16%, transparent 34%),
-    radial-gradient(circle at 72% 72%, rgba(255, 255, 255, 0.45) 0 7%, transparent 9%);
-  animation: zh-wet 2.4s ease-in-out infinite;
-}

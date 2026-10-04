@@ -65,8 +65,6 @@ interface Props {
   remaining: number | null;
   path: number[];
   locked: number[];
-  /** Fresh paint (cell → painter) that opponents can't paint over yet. */
-  wet: Record<number, string>;
   highlights: Map<number, HighlightKind>;
   onCellClick: (cell: number) => void;
   /** Keep this cell in view (scrolls when it nears the edge of the visible area). */
@@ -88,7 +86,6 @@ function MapGrid({
   remaining,
   path,
   locked,
-  wet,
   highlights,
   onCellClick,
   focusCell,
@@ -254,7 +251,6 @@ function MapGrid({
                     )}
                     {pathSet.has(i) && <span className="absolute h-[22%] w-[22%] rounded-full bg-white/80" />}
                     {lockedSet.has(i) && <span className="absolute right-0 top-0 text-[0.45em]">🛡️</span>}
-                    {wet[i] !== undefined && cell.o >= 0 && <span className="zh-wet pointer-events-none absolute inset-0" />}
                   </>
                 )}
                 {fx?.kind === "reveal" && (

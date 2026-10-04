@@ -222,7 +222,6 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           shakeKey={shakeCount(room)}
           path={turn?.path ?? []}
           locked={room.locked}
-          wet={room.wet}
           highlights={highlights}
           onCellClick={onCellClick}
         />
@@ -815,7 +814,8 @@ function Legend() {
     [<CaveIcon key="cave" />, "洞窟"],
     ["🎁", "宝箱"],
     ["🚩", "フラッグ"],
-    ["✨", "塗りたて(相手は次の手番まで上書き不可)"],
+    ["½", "自分の色: 移動コスト半分"],
+    ["+1", "相手の色・相手のコマの隣: 移動コスト+1"],
   ];
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 text-xs text-white/45">

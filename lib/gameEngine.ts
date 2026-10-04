@@ -4,7 +4,6 @@ import {
   autoBoardSize,
   Cell,
   DICE_COUNT,
-  ENEMY_SIGHT,
   emptyPending,
   Feature,
   isPaintable,
@@ -143,7 +142,6 @@ export function createRoom(hostId: string, hostName: string, isTest = false): Ro
     seen: [],
     knownFlags: [],
     locked: [],
-    wet: {},
     flagCounts: [],
     flagTotal: 0,
     paintable: 0,
@@ -393,7 +391,6 @@ function dealNewGame(prev: RoomState): RoomState {
   room.seen = Array.from({ length: colorCount }, () => "0".repeat(size * size));
   room.knownFlags = [];
   room.locked = [];
-  room.wet = {};
   room.flagCounts = Array(colorCount).fill(0);
   room.flagTotal = room.cells.filter((c) => c.f === "flag").length;
   room.paintable = room.cells.filter((c) => isPaintable(c.t)).length;
@@ -491,11 +488,7 @@ function reveal(room: RoomState, color: number, center: number, radius: number, 
 
 function isProtected(room: RoomState, cell: number, painter: number): boolean {
   if (room.players.some((p) => p.cave && p.pos === cell)) return true;
-  if (room.cells[cell].o === painter) return false;
-  // Fresh paint can't be painted over by others until its painter's next turn.
-  const wetBy = room.wet[cell];
-  if (wetBy && room.players.find((p) => p.id === wetBy)?.color !== painter) return true;
-  return room.locked.includes(cell);
+  return room.locked.includes(cell) && room.cells[cell].o !== painter;
 }
 
 /** Returns true when the cell changed color. */
@@ -506,7 +499,6 @@ function paint(room: RoomState, cell: number, painter: Player, noOverwrite: bool
   if (c.o >= 0 && noOverwrite) return false;
   if (isProtected(room, cell, color)) return false;
   c.o = color;
-  room.wet[cell] = painter.id;
   return true;
 }
 
@@ -579,11 +571,19 @@ function afterPaint(room: RoomState, player: Player) {
   recount(room);
 }
 
-function stepCost(room: RoomState, cell: number, turn: TurnState): number {
+/**
+ * Movement points to enter `cell` (can be a half): forest 2 / otherwise 1;
+ * your own color halves it, an opponent's color adds 1; and closing in on an
+ * opponent's piece (within 1 cell, diagonals included) adds 1 more.
+ */
+export function stepCost(room: RoomState, cell: number, turn: TurnState): number {
   let cost = room.cells[cell].t === "forest" && !turn.mods.ignoreForest ? 2 : 1;
-  // Closing in on an opponent (within 1 cell, diagonals included) is heavy going.
   const mover = room.players.find((p) => p.id === turn.playerId);
-  if (mover && room.players.some((p) => p.color !== mover.color && p.pos >= 0 && chebyshev(room.size, p.pos, cell) <= 1)) cost++;
+  if (!mover) return cost;
+  const owner = room.cells[cell].o;
+  if (owner === mover.color) cost /= 2;
+  else if (owner >= 0) cost += 1;
+  if (room.players.some((p) => p.color !== mover.color && p.pos >= 0 && chebyshev(room.size, p.pos, cell) <= 1)) cost += 1;
   return cost;
 }
 
@@ -594,7 +594,7 @@ function occupiedByOther(room: RoomState, cell: number, playerId: string): boole
 /** Can a piece at `pos` with `remaining` movement still end exactly on a free cell? */
 function canFinish(room: RoomState, player: Player, turn: TurnState, pos: number, remaining: number, memo: Map<number, boolean>): boolean {
   if (remaining === 0) return !occupiedByOther(room, pos, player.id);
-  const key = pos * 64 + remaining;
+  const key = pos * 256 + remaining * 2; // remaining moves in halves
   const known = memo.get(key);
   if (known !== undefined) return known;
   memo.set(key, false);
@@ -615,7 +615,7 @@ function stepError(room: RoomState, player: Player, turn: TurnState, to: number)
   if (cell.t === "mountain") return "山は通れません";
   if (cell.t === "river") return "川は橋がないと渡れません";
   const cost = stepCost(room, to, turn);
-  if (cost > turn.remaining) return "移動力が足りません(森は2必要)";
+  if (cost > turn.remaining) return `移動力が足りません(このマスは${cost}必要)`;
   if (turn.remaining - cost === 0 && occupiedByOther(room, to, player.id)) return "他のコマがいるマスには止まれません";
   // Don't walk into a dead end where the move can no longer finish on a free
   // cell — unless no finishing route exists at all (then anything goes and
@@ -642,8 +642,6 @@ function byId(room: RoomState, id: string): Player {
 
 function beginTurn(room: RoomState) {
   const player = byId(room, room.order[room.turnIndex]);
-  // Your paint from last turn has dried: others can paint over it again.
-  for (const [cell, by] of Object.entries(room.wet)) if (by === player.id) delete room.wet[Number(cell)];
   // 1回休み: the turn passes straight on (it still counts toward the set).
   if (player.resting) {
     player.resting = false;
@@ -844,6 +842,10 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
   if (turn.remaining === 0) {
     if (cell.f === "cave") enterCave(r, player);
     endTurn(r);
+  } else if (cell.f !== "cave" && legalSteps(r, player, turn).length === 0) {
+    // Leftover movement that can't be spent (e.g. half a point with no own
+    // cell next to you): the move just ends. On a cave, let the player choose.
+    endTurn(r);
   }
   return r;
 }
@@ -994,24 +996,18 @@ export function sanitizeForPlayer(room: RoomState, viewerId: string): RoomState 
   const viewer = room.players.find((p) => p.id === viewerId);
   const color = viewer?.color ?? -1;
   const visible = (c: number) => seenBy(room, color, c) || room.knownFlags.includes(c);
-  // Terrain stays revealed once seen, but opponents are only visible near your own pieces.
-  const allies = room.players.filter((p) => p.color === color && p.pos >= 0).map((p) => p.pos);
-  const inSight = (c: number) => allies.some((a) => chebyshev(room.size, a, c) <= ENEMY_SIGHT);
   const turn = room.turn;
   const actorIsAlly = !!turn && byId(room, turn.playerId).color === color;
-  const wet: Record<number, string> = {};
-  for (const [cell, by] of Object.entries(room.wet)) if (visible(Number(cell))) wet[Number(cell)] = by;
   return {
     ...room,
     seen: [],
-    wet,
     cells: room.cells.map((c, i) => (visible(i) ? c : FOG)),
     players: room.players.map((p) =>
-      p.color === color ? p : { ...p, items: [], pos: p.pos >= 0 && inSight(p.pos) ? p.pos : -1 }
+      p.color === color ? p : { ...p, items: [], pos: p.pos >= 0 && visible(p.pos) ? p.pos : -1 }
     ),
     turn: turn && {
       ...turn,
-      path: actorIsAlly ? turn.path : turn.path.filter(inSight),
+      path: actorIsAlly ? turn.path : turn.path.filter(visible),
       caveChoices: turn.playerId === viewerId ? turn.caveChoices : [],
     },
   };

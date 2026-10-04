@@ -118,8 +118,6 @@ export interface RoomState {
   knownFlags: number[];
   /** Cells protected by a barrier until the next scoring. */
   locked: number[];
-  /** Freshly painted cells → who painted them. Other colors can't repaint them until that player's next turn. */
-  wet: Record<number, string>;
   /** Flags each color holds right now (public). */
   flagCounts: number[];
   flagTotal: number;
@@ -151,8 +149,6 @@ export const MAX_PLAYERS = 8;
 export const MAX_FFA_PLAYERS = 4;
 export const MAX_ITEMS = 3;
 export const VISION = 2;
-/** Enemy pieces are only shown within this many cells of one of your own pieces. */
-export const ENEMY_SIGHT = 3;
 
 export const COLOR_NAMES_TEAMS = ["青", "赤"];
 export const COLOR_NAMES_FFA = ["赤", "青", "緑", "紫"];

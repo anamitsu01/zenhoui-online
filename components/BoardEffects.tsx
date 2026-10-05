@@ -66,7 +66,7 @@ export function SoundDirector({ room, viewerId }: { room: RoomState; viewerId: s
           play("chest", { volume: e.playerId === viewerId ? 1 : 0.5 });
           break;
         case "caveItem":
-          if (e.item) play("chest", { volume: e.playerId === viewerId ? 1 : 0.5 });
+          if (e.item || e.hidden) play("chest", { volume: e.playerId === viewerId ? 1 : 0.5 });
           break;
         case "item":
           play(e.item === "bomb" || e.item === "megaBomb" || e.item === "missile" || e.item === "storm" ? "bomb" : e.item === "sanctuary" || e.item === "ancientMap" ? "flag" : "item");

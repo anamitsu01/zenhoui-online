@@ -778,11 +778,15 @@ function eventText(room: RoomState, e: PublicEvent): string {
     case "item":
       return `${name(e.playerId)}が${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name}を使った${e.targetName ? `(${e.targetName}へ)` : ""}`;
     case "chest":
-      return `${name(e.playerId)}が🎁宝箱を開けた: ${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name}`;
+      return e.item
+        ? `${name(e.playerId)}が🎁宝箱を開けた: ${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name}`
+        : `${name(e.playerId)}が🎁宝箱を開けた`;
     case "caveItem":
       return e.item
         ? `${name(e.playerId)}が洞窟の秘宝 ${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name} を手に入れた`
-        : `${name(e.playerId)}は秘宝を受け取らなかった`;
+        : e.hidden
+          ? `${name(e.playerId)}が洞窟の秘宝を手に入れた`
+          : `${name(e.playerId)}は秘宝を受け取らなかった`;
     case "ruins": {
       const r = RUINS_EFFECTS.find((x) => x.roll === e.roll);
       return `${name(e.playerId)}が🏛️遺跡を踏んだ: ${e.roll}「${r?.name}」${r?.description}`;
@@ -1017,7 +1021,7 @@ function DiceResult({ room, viewerId, anchor }: { room: RoomState; viewerId: str
 type PopupEvent = Extract<PublicEvent, { type: "chest" | "caveItem" | "ruins" | "bridge" | "rest" }>;
 
 function isPopupEvent(e: PublicEvent): e is PopupEvent {
-  return e.type === "chest" || (e.type === "caveItem" && e.item !== null) || e.type === "ruins" || e.type === "bridge" || e.type === "rest";
+  return e.type === "chest" || (e.type === "caveItem" && (e.item !== null || !!e.hidden)) || e.type === "ruins" || e.type === "bridge" || e.type === "rest";
 }
 
 function EventPopups({ room, viewerId }: { room: RoomState; viewerId: string }) {
@@ -1035,7 +1039,8 @@ function EventPopups({ room, viewerId }: { room: RoomState; viewerId: string }) 
   const own = e.playerId === viewerId;
   const who = own ? "あなた" : room.players.find((p) => p.id === e.playerId)?.name ?? "だれか";
   const close = () => setSeen(index + 1);
-  if (e.type === "chest" || e.type === "caveItem") return <ItemGotPopup key={index} item={e.item!} own={own} who={who} onClose={close} />;
+  if (e.type === "chest" || e.type === "caveItem")
+    return <ItemGotPopup key={index} item={e.item} rare={e.type === "caveItem"} own={own} who={who} onClose={close} />;
   if (e.type === "ruins") return <RuinsPopup key={index} roll={e.roll} own={own} who={who} onClose={close} />;
   return <BridgePopup key={index} kind={e.type === "rest" ? "rest" : e.rest ? "midMove" : "start"} own={own} who={who} onClose={close} />;
 }
@@ -1172,22 +1177,23 @@ function RuinsPopup({ roll, own, who, onClose }: { roll: number; own: boolean; w
   );
 }
 
-function ItemGotPopup({ item, own, who, onClose }: { item: ItemKind; own: boolean; who: string; onClose: () => void }) {
-  const def = ITEM_BY_ID[item];
-  const what = def.rare ? "洞窟の秘宝" : "アイテム";
+/** `item` is null when an opponent found it: they only learn that something was found. */
+function ItemGotPopup({ item, rare, own, who, onClose }: { item: ItemKind | null; rare: boolean; own: boolean; who: string; onClose: () => void }) {
+  const def = item ? ITEM_BY_ID[item] : null;
+  const what = rare ? "洞窟の秘宝" : "アイテム";
   return (
     <PopupShell own={own} onClose={onClose} autoMs={own ? undefined : OTHERS_POPUP_MS}>
       <div
-        className={`zh-pop rounded-2xl border-2 bg-panel p-6 text-center shadow-2xl ${def.rare ? "border-fuchsia-400" : "border-lamp"}`}
-        style={def.rare ? { boxShadow: "0 0 40px 6px rgba(232,121,249,0.45)" } : undefined}
+        className={`zh-pop rounded-2xl border-2 bg-panel p-6 text-center shadow-2xl ${rare ? "border-fuchsia-400" : "border-lamp"}`}
+        style={rare ? { boxShadow: "0 0 40px 6px rgba(232,121,249,0.45)" } : undefined}
       >
-        <p className={`text-xs tracking-[0.3em] ${def.rare ? "text-fuchsia-300/80" : "text-lamp/80"}`}>{def.rare ? "CAVE TREASURE" : "GET ITEM"}</p>
-        <p className={`mb-3 font-bold ${def.rare ? "text-fuchsia-200" : "text-lamp-light"}`}>
+        <p className={`text-xs tracking-[0.3em] ${rare ? "text-fuchsia-300/80" : "text-lamp/80"}`}>{rare ? "CAVE TREASURE" : "GET ITEM"}</p>
+        <p className={`mb-3 font-bold ${rare ? "text-fuchsia-200" : "text-lamp-light"}`}>
           {own ? `${what}を手に入れた!` : `${who}が${what}を手に入れた!`}
         </p>
-        <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-2xl bg-white/[0.06] text-6xl">{def.icon}</div>
-        <p className="text-2xl font-black">{def.name}</p>
-        <p className="mt-2 text-sm text-white/80">{def.description}</p>
+        <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-2xl bg-white/[0.06] text-6xl">{def ? def.icon : "❓"}</div>
+        <p className="text-2xl font-black">{def ? def.name : "???"}</p>
+        <p className="mt-2 text-sm text-white/80">{def ? def.description : "何を手に入れたかは分からない…"}</p>
         {own && (
           <>
             <p className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-white/50">

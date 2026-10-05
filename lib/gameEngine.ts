@@ -1073,9 +1073,15 @@ export function sanitizeForPlayer(room: RoomState, viewerId: string): RoomState 
   const visible = (c: number) => seenBy(room, color, c) || room.knownFlags.includes(c);
   const turn = room.turn;
   const actorIsAlly = !!turn && byId(room, turn.playerId).color === color;
+  // Opponents learn that an item was found, not which one.
+  const colorOf = (id: string) => room.players.find((p) => p.id === id)?.color;
+  const log = room.log.map((e) =>
+    (e.type === "chest" || e.type === "caveItem") && e.item && colorOf(e.playerId) !== color ? { ...e, item: null, hidden: true } : e
+  );
   return {
     ...room,
     seen: [],
+    log,
     cells: room.cells.map((c, i) => (visible(i) ? c : FOG)),
     players: room.players.map((p) =>
       p.color === color ? p : { ...p, items: [], pos: p.pos >= 0 && visible(p.pos) ? p.pos : -1 }

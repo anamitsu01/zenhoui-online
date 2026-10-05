@@ -93,8 +93,9 @@ export type PublicEvent =
   | { type: "setStart"; set: number }
   | { type: "roll"; playerId: string; dice: number[]; steps: number }
   | { type: "item"; playerId: string; item: ItemKind; targetName?: string }
-  | { type: "chest"; playerId: string; color: number; item: ItemKind }
-  | { type: "caveItem"; playerId: string; item: ItemKind | null }
+  /** `hidden`: the item is kept from opponents (item is null for them). */
+  | { type: "chest"; playerId: string; color: number; item: ItemKind | null; hidden?: boolean }
+  | { type: "caveItem"; playerId: string; item: ItemKind | null; hidden?: boolean }
   | { type: "ruins"; playerId: string; roll: number }
   | { type: "caveEnter"; playerId: string }
   | { type: "caveRoll"; playerId: string; roll: number; total: number; dice: number[] }

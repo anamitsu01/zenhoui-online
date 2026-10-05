@@ -12,7 +12,7 @@ export const BIG_CAPTURE = 12;
 /** Bumps whenever something should shake the board (bombs, big captures). */
 export function shakeCount(room: RoomState): number {
   return room.log.filter(
-    (e) => (e.type === "item" && (e.item === "bomb" || e.item === "megaBomb" || e.item === "storm")) || (e.type === "enclose" && e.count >= BIG_CAPTURE)
+    (e) => (e.type === "item" && (e.item === "bomb" || e.item === "megaBomb" || e.item === "missile" || e.item === "storm")) || (e.type === "enclose" && e.count >= BIG_CAPTURE)
   ).length;
 }
 
@@ -70,8 +70,8 @@ export function SoundDirector({ room, viewerId }: { room: RoomState; viewerId: s
           if (e.playerId !== viewerId) play("ruins", { volume: 0.5 });
           break;
         case "item":
-          play(e.item === "bomb" || e.item === "megaBomb" || e.item === "storm" ? "bomb" : e.item === "sanctuary" || e.item === "ancientMap" ? "flag" : "item");
-          if (e.item === "bomb" || e.item === "megaBomb") buzz(e.item === "megaBomb" ? 160 : 80);
+          play(e.item === "bomb" || e.item === "megaBomb" || e.item === "missile" || e.item === "storm" ? "bomb" : e.item === "sanctuary" || e.item === "ancientMap" ? "flag" : "item");
+          if (e.item === "bomb" || e.item === "megaBomb" || e.item === "missile") buzz(e.item === "bomb" ? 80 : 160);
           break;
         case "caveEnter":
         case "caveExit":
@@ -136,6 +136,7 @@ function cutInFor(room: RoomState, e: PublicEvent, key: number, viewerId: string
   if (e.type === "caveExit") return { key, title: "洞窟から脱出!", sub: `${who}がお宝を持ち帰った`, color, icon: <CaveIcon /> };
   if (e.type === "item" && e.item === "bomb") return { key, title: "ドカン!", sub: `${who}が爆弾を使った`, color, icon: "💣" };
   if (e.type === "item" && e.item === "megaBomb") return { key, title: "大爆発!!", sub: `${who}が大爆弾を使った`, color, icon: "💥" };
+  if (e.type === "item" && e.item === "missile") return { key, title: "ミサイル着弾!", sub: `${who}のミサイルが3か所に落ちた`, color, icon: "🚀" };
   if (e.type === "item" && e.item === "storm") return { key, title: "暴風!", sub: `${who}の暴風 — 相手全員の次のターン移動力-3`, color, icon: "🌪️" };
   if (e.type === "item" && e.item === "sanctuary") return { key, title: "聖域!", sub: `${who}の陣地がしばらく塗り替え不可に`, color, icon: "⛩️" };
   if (e.type === "item" && e.item === "ancientMap") return { key, title: "古代の地図!", sub: `${who}がすべてのフラッグを暴いた`, color, icon: "🗺️" };

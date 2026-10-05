@@ -21,6 +21,7 @@ export type ItemKind =
   | "bridgeKit"
   // rare (caves only)
   | "megaBomb"
+  | "missile"
   | "ancientMap"
   | "wideRoller"
   | "sanctuary"

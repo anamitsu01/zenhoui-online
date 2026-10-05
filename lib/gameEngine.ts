@@ -972,10 +972,19 @@ export function applyItem(room: RoomState, playerId: string, index: number, targ
     case "bridgeKit":
       placeBridge(r, player, cellTarget(r, target));
       break;
-    case "megaBomb": {
-      const [px, py] = xy(r.size, player.pos);
-      for (let y = py - 2; y <= py + 3; y++)
-        for (let x = px - 2; x <= px + 3; x++) if (inBounds(r.size, x, y)) paint(r, idx(r.size, x, y), player, false);
+    case "megaBomb":
+      for (const c of square(r.size, player.pos, 2)) paint(r, c, player, false);
+      afterPaint(r, player);
+      if (checkFlagWin(r)) return r;
+      break;
+    case "missile": {
+      // Three strikes anywhere on the board (fog included); each paints a 3×3
+      // and clears the fog there for the firing team so they see where it landed.
+      for (let k = 0; k < 3; k++) {
+        const center = rand(r.size * r.size);
+        for (const c of square(r.size, center, 1)) paint(r, c, player, false);
+        reveal(r, player.color, center, 1, playerId);
+      }
       afterPaint(r, player);
       if (checkFlagWin(r)) return r;
       break;

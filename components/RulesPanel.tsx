@@ -1,4 +1,4 @@
-import { ITEMS, RUINS_EFFECTS, TERRAIN_INFO } from "@/lib/content";
+import { ITEMS, RARE_ITEMS, RUINS_EFFECTS, TERRAIN_INFO } from "@/lib/content";
 import CaveIcon from "./CaveIcon";
 
 export default function RulesPanel({ defaultOpen = false }: { defaultOpen?: boolean }) {
@@ -72,6 +72,16 @@ export function RulesContent({ className = "" }: { className?: string }) {
           {ITEMS.map((i) => (
             <li key={i.id}>
               {i.icon} <b className="text-ink">{i.name}</b>: {i.description}
+            </li>
+          ))}
+        </ul>
+      </details>
+      <details className="rounded-lg bg-white/[0.03] p-3">
+        <summary className="cursor-pointer font-semibold text-ink">洞窟の秘宝(洞窟でしか手に入らない。脱出時に2つから1つを選ぶ)</summary>
+        <ul className="mt-2 space-y-1">
+          {RARE_ITEMS.map((i) => (
+            <li key={i.id}>
+              {i.icon} <b className="text-fuchsia-200">{i.name}</b>: {i.description}
             </li>
           ))}
         </ul>

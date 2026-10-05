@@ -1,4 +1,4 @@
-import { ITEM_BY_ID, ITEMS } from "./content";
+import { ITEM_BY_ID, ITEMS, RARE_ITEMS } from "./content";
 import { generateTerrain } from "./mapGen";
 import {
   autoBoardSize,
@@ -52,6 +52,11 @@ function shuffle<T>(arr: T[]): T[] {
 
 function randomItem(): ItemKind {
   return ITEMS[rand(ITEMS.length)].id;
+}
+
+/** Two different cave treasures to choose from. */
+function rareChoices(): ItemKind[] {
+  return shuffle(RARE_ITEMS.map((i) => i.id)).slice(0, 2);
 }
 
 function makeRoomCode(): string {
@@ -142,6 +147,7 @@ export function createRoom(hostId: string, hostName: string, isTest = false): Ro
     seen: [],
     knownFlags: [],
     locked: [],
+    sanctuaries: [],
     flagCounts: [],
     flagTotal: 0,
     paintable: 0,
@@ -391,6 +397,7 @@ function dealNewGame(prev: RoomState): RoomState {
   room.seen = Array.from({ length: colorCount }, () => "0".repeat(size * size));
   room.knownFlags = [];
   room.locked = [];
+  room.sanctuaries = [];
   room.flagCounts = Array(colorCount).fill(0);
   room.flagTotal = room.cells.filter((c) => c.f === "flag").length;
   room.paintable = room.cells.filter((c) => isPaintable(c.t)).length;
@@ -488,6 +495,8 @@ function reveal(room: RoomState, color: number, center: number, radius: number, 
 
 function isProtected(room: RoomState, cell: number, painter: number): boolean {
   if (room.players.some((p) => p.cave && p.pos === cell)) return true;
+  const owner = room.cells[cell].o;
+  if (owner >= 0 && owner !== painter && room.sanctuaries.some((s) => s.color === owner)) return true;
   return room.locked.includes(cell) && room.cells[cell].o !== painter;
 }
 
@@ -582,7 +591,7 @@ export function stepCost(room: RoomState, cell: number, turn: TurnState): number
   if (!mover) return cost;
   const owner = room.cells[cell].o;
   if (owner === mover.color) cost /= 2;
-  else if (owner >= 0) cost += 1;
+  else if (owner >= 0) cost = turn.mods.skates ? (cost + 1) / 2 : cost + 1;
   if (room.players.some((p) => p.color !== mover.color && p.pos >= 0 && chebyshev(room.size, p.pos, cell) <= 1)) cost += 1;
   return cost;
 }
@@ -642,6 +651,9 @@ function byId(room: RoomState, id: string): Player {
 
 function beginTurn(room: RoomState) {
   const player = byId(room, room.order[room.turnIndex]);
+  // 聖域 wears off as its user's turns come around.
+  for (const s of room.sanctuaries) if (s.playerId === player.id) s.turnsLeft--;
+  room.sanctuaries = room.sanctuaries.filter((s) => s.turnsLeft > 0);
   // 1回休み: the turn passes straight on (it still counts toward the set).
   if (player.resting) {
     player.resting = false;
@@ -660,6 +672,8 @@ function beginTurn(room: RoomState) {
     path: [player.pos],
     mods: {
       roller: pend.roller,
+      wideRoller: false,
+      skates: false,
       noOverwrite: pend.noOverwrite,
       ignoreForest: pend.ignoreForest,
       moveDelta: pend.moveDelta,
@@ -753,7 +767,7 @@ export function roll(room: RoomState, playerId: string): RoomState {
     player.cave = null;
     r.log.push({ type: "caveExit", playerId, extra });
     turn.stage = "caveItem";
-    turn.caveChoices = [randomItem(), randomItem()];
+    turn.caveChoices = rareChoices();
     turn.steps = extra;
     turn.remaining = extra;
     turn.path = [player.pos];
@@ -811,15 +825,18 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
   reveal(r, player.color, to, VISION, playerId);
 
   paint(r, to, player, turn.mods.noOverwrite);
-  if (turn.mods.roller) {
+  const reach = turn.mods.wideRoller ? 2 : turn.mods.roller ? 1 : 0;
+  if (reach) {
     const [fx, fy] = xy(r.size, from);
     const [tx, ty] = xy(r.size, to);
     const [dx, dy] = [tx - fx, ty - fy];
-    for (const [px, py] of [
-      [tx + dy, ty + dx],
-      [tx - dy, ty - dx],
-    ]) {
-      if (inBounds(r.size, px, py)) paint(r, idx(r.size, px, py), player, turn.mods.noOverwrite);
+    for (let k = 1; k <= reach; k++) {
+      for (const [px, py] of [
+        [tx + dy * k, ty + dx * k],
+        [tx - dy * k, ty - dx * k],
+      ]) {
+        if (inBounds(r.size, px, py)) paint(r, idx(r.size, px, py), player, turn.mods.noOverwrite);
+      }
     }
   }
 
@@ -954,6 +971,51 @@ export function applyItem(room: RoomState, playerId: string, index: number, targ
     }
     case "bridgeKit":
       placeBridge(r, player, cellTarget(r, target));
+      break;
+    case "megaBomb": {
+      const [px, py] = xy(r.size, player.pos);
+      for (let y = py - 2; y <= py + 3; y++)
+        for (let x = px - 2; x <= px + 3; x++) if (inBounds(r.size, x, y)) paint(r, idx(r.size, x, y), player, false);
+      afterPaint(r, player);
+      if (checkFlagWin(r)) return r;
+      break;
+    }
+    case "ancientMap": {
+      const c = cellTarget(r, target);
+      // Every flag is exposed (to everyone, like any found flag), plus a big clearing.
+      const seen = r.seen[player.color].split("");
+      r.cells.forEach((cell, i) => {
+        if (cell.f !== "flag") return;
+        seen[i] = "1";
+        if (!r.knownFlags.includes(i)) r.knownFlags.push(i);
+      });
+      r.seen[player.color] = seen.join("");
+      reveal(r, player.color, c, 5, playerId);
+      break;
+    }
+    case "wideRoller":
+      turn.mods.wideRoller = true;
+      break;
+    case "sanctuary":
+      r.sanctuaries = r.sanctuaries.filter((s) => s.color !== player.color);
+      r.sanctuaries.push({ color: player.color, playerId, turnsLeft: 2 });
+      break;
+    case "storm":
+      for (const p of r.players) if (p.color !== player.color) p.pending.moveDelta -= 3;
+      targetName = "相手全員";
+      break;
+    case "pegasus": {
+      const c = cellTarget(r, target);
+      if (!seenBy(r, player.color, c)) throw new GameError("見えているマスを選んでください");
+      if (!isPassable(r.cells[c].t)) throw new GameError("そこには降りられません");
+      if (occupiedByOther(r, c, playerId)) throw new GameError("他のコマがいるマスには移動できません");
+      player.pos = c;
+      turn.path = [c];
+      reveal(r, player.color, c, VISION, playerId);
+      break;
+    }
+    case "skates":
+      turn.mods.skates = true;
       break;
   }
 

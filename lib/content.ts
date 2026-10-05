@@ -1,6 +1,6 @@
 import type { ItemKind } from "./types";
 
-export type ItemTarget = "none" | "cell" | "ownCell" | "riverCell" | "enemy";
+export type ItemTarget = "none" | "cell" | "ownCell" | "riverCell" | "enemy" | "seenCell";
 
 export interface ItemDef {
   id: ItemKind;
@@ -8,6 +8,8 @@ export interface ItemDef {
   icon: string;
   description: string;
   target: ItemTarget;
+  /** Cave-only treasure. */
+  rare?: boolean;
 }
 
 /** Items are used at the start of your turn, before rolling. */
@@ -22,7 +24,18 @@ export const ITEMS: ItemDef[] = [
   { id: "bridgeKit", name: "橋キット", icon: "🪵", description: "自分のコマに隣接する川に、手番を使わず橋を架ける", target: "riverCell" },
 ];
 
-export const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i])) as Record<ItemKind, ItemDef>;
+/** Cave-only treasures: worth the turns spent digging for them. */
+export const RARE_ITEMS: ItemDef[] = [
+  { id: "megaBomb", name: "大爆弾", icon: "💥", description: "自分のまわり6×6(左上2マス〜右下3マス)を自分の色にする", target: "none", rare: true },
+  { id: "ancientMap", name: "古代の地図", icon: "🗺️", description: "すべてのフラッグの位置を暴き、好きなマスを中心に11×11の霧を晴らす", target: "cell", rare: true },
+  { id: "wideRoller", name: "極太ローラー", icon: "🧹", description: "このターン、通過マスの左右2マスずつ(幅5マス)を塗る", target: "none", rare: true },
+  { id: "sanctuary", name: "聖域", icon: "⛩️", description: "自分の色のマスすべてを、自分の手番が2回まわってくるまで塗り替え不可にする", target: "none", rare: true },
+  { id: "storm", name: "暴風", icon: "🌪️", description: "相手全員の次のターンの移動力-3", target: "none", rare: true },
+  { id: "pegasus", name: "天馬の翼", icon: "🪽", description: "見えている好きなマスへ飛んで移動(その後サイコロを振る)", target: "seenCell", rare: true },
+  { id: "skates", name: "ローラースケート", icon: "🛼", description: "このターン、相手の色のマスの移動コストが半分", target: "none", rare: true },
+];
+
+export const ITEM_BY_ID = Object.fromEntries([...ITEMS, ...RARE_ITEMS].map((i) => [i.id, i])) as Record<ItemKind, ItemDef>;
 
 /** Ruins: roll a die when stepping on one; the effect applies to your next turn. */
 export const RUINS_EFFECTS: { roll: number; name: string; description: string; icon: string; good: boolean }[] = [
@@ -42,7 +55,7 @@ export const TERRAIN_INFO: { icon: string; name: string; description: string }[]
   { icon: "🌉", name: "橋", description: "誰でも通れる" },
   { icon: "🧊", name: "氷河", description: "通れるが、ずっと白のまま塗れない" },
   { icon: "🏛️", name: "遺跡", description: "踏むとサイコロを振り、次のターンに効果(1回で崩れる)" },
-  { icon: "cave", name: "洞窟", description: "入ると次のターンから毎ターン振った目を合計し、規定値以上でアイテムを選んで脱出。超えた分だけ進める" },
+  { icon: "cave", name: "洞窟", description: "入ると次のターンから毎ターン振った目を合計し、規定値以上で洞窟限定の秘宝2つから1つを選んで脱出。超えた分だけ進める" },
   { icon: "🎁", name: "宝箱", description: "踏むとアイテムを1個獲得" },
   { icon: "🚩", name: "フラッグ", description: "自分の色にしていれば支配。見つけると全員に位置が公開される" },
 ];

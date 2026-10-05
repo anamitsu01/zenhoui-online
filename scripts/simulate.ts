@@ -55,7 +55,7 @@ function act(room: RoomState): RoomState {
       if (def.target === "enemy") target = rand(room.players.filter((p) => p.color !== player.color)).id;
       else if (def.target === "riverCell") target = rand(neighbors4(room.size, player.pos));
       else if (def.target === "ownCell") target = rand(room.cells.flatMap((c, i) => (c.o === player.color ? [i] : [])));
-      else if (def.target === "cell") target = Math.floor(Math.random() * room.cells.length);
+      else if (def.target === "cell" || def.target === "seenCell") target = Math.floor(Math.random() * room.cells.length);
       try {
         return applyItem(room, player.id, index, target);
       } catch (e) {
@@ -71,7 +71,7 @@ function act(room: RoomState): RoomState {
   if (turn.stage === "chooseDie") return chooseDie(room, player.id, Math.floor(Math.random() * turn.dice.length));
   if (turn.stage === "caveItem") {
     try {
-      return takeCaveItem(room, player.id, 0);
+      return takeCaveItem(room, player.id, Math.floor(Math.random() * 2));
     } catch {
       return takeCaveItem(room, player.id, -1);
     }

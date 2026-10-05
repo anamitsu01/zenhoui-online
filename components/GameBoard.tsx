@@ -6,7 +6,7 @@ import { colorHex, withAlpha } from "@/lib/colors";
 import { legalSteps, neighbors4 } from "@/lib/gameEngine";
 import type { ClientToServerEvents } from "@/lib/socketEvents";
 import type { ItemKind, Player, PublicEvent, RoomState, TurnState } from "@/lib/types";
-import { colorName, MAX_ITEMS } from "@/lib/types";
+import { colorName, isPassable, MAX_ITEMS } from "@/lib/types";
 import { play } from "@/lib/sound";
 import { EventCutIns, MuteToggle, shakeCount, SoundDirector } from "./BoardEffects";
 import CaveIcon from "./CaveIcon";
@@ -94,6 +94,11 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       }
       if (def?.target === "riverCell") {
         for (const c of neighbors4(room.size, me.pos)) if (room.cells[c].t === "river") map.set(c, "target");
+      }
+      if (def?.target === "seenCell") {
+        room.cells.forEach((c, i) => {
+          if (isPassable(c.t) && !room.players.some((p) => p.pos === i && p.id !== me.id)) map.set(i, "line");
+        });
       }
     } else if (steps.length) {
       // Moving: the whole board is tappable (a tap picks a direction, see
@@ -211,6 +216,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           </span>
         </div>
         <MapGrid
+          sanctuaryColors={room.sanctuaries.map((s) => s.color)}
           focusCell={me.pos}
           recenterKey={recenterKey}
           size={room.size}
@@ -289,6 +295,11 @@ function ScoreStrip({ room }: { room: RoomState }) {
               <div className="flex items-baseline justify-between gap-1">
                 <span className="truncate text-sm font-bold" style={{ color: hex }}>
                   {teamLabel(room, c)}
+                  {room.sanctuaries.some((s) => s.color === c) && (
+                    <span className="ml-1 rounded bg-amber-300/20 px-1 text-[10px] font-normal text-amber-200" title="聖域: このチームのマスは塗り替えられない">
+                      ⛩️聖域
+                    </span>
+                  )}
                 </span>
                 <span className="text-xl font-black">
                   {score}
@@ -465,7 +476,7 @@ function ActionPanel({
     const full = me.items.length >= MAX_ITEMS;
     return (
       <div className="flex flex-col items-center gap-2 py-1 text-center">
-        <p className="font-bold text-lamp">洞窟から脱出! アイテムを1つ選んでください</p>
+        <p className="font-bold text-lamp">洞窟から脱出! 秘宝を1つ選んでください</p>
         <div className="flex flex-wrap justify-center gap-2">
           {turn.caveChoices.map((it, i) => (
             <ItemButton key={i} item={it} disabled={busy || full} onClick={() => run(act("game:caveItem", { index: i }))} />
@@ -541,11 +552,16 @@ function ItemButton({ item, disabled, onClick }: { item: ItemKind; disabled?: bo
       disabled={disabled}
       onClick={onClick}
       title={def.description}
-      className="flex max-w-[14rem] items-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-left hover:bg-white/10 disabled:opacity-40"
+      className={`flex max-w-[14rem] items-center gap-2 rounded-xl border px-3 py-2 text-left disabled:opacity-40 ${
+        def.rare ? "border-fuchsia-400/60 bg-fuchsia-500/10 hover:bg-fuchsia-500/20" : "border-white/15 bg-white/[0.04] hover:bg-white/10"
+      }`}
     >
       <span className="text-2xl">{def.icon}</span>
       <span className="min-w-0">
-        <span className="block text-sm font-bold">{def.name}</span>
+        <span className="block text-sm font-bold">
+          {def.name}
+          {def.rare && <span className="ml-1 rounded bg-fuchsia-400/25 px-1 text-[10px] text-fuchsia-200">秘宝</span>}
+        </span>
         <span className="block text-[11px] leading-tight text-white/50">{def.description}</span>
       </span>
     </button>
@@ -947,11 +963,12 @@ function ItemGotPopup({ item, more, onClose }: { item: ItemKind; more: number; o
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" onClick={onClose}>
       <div
-        className="zh-pop w-full max-w-xs rounded-2xl border-2 border-lamp bg-panel p-6 text-center shadow-2xl"
+        className={`zh-pop w-full max-w-xs rounded-2xl border-2 bg-panel p-6 text-center shadow-2xl ${def.rare ? "border-fuchsia-400" : "border-lamp"}`}
+        style={def.rare ? { boxShadow: "0 0 40px 6px rgba(232,121,249,0.45)" } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-xs tracking-[0.3em] text-lamp/80">GET ITEM</p>
-        <p className="mb-3 font-bold text-lamp-light">アイテムを手に入れた!</p>
+        <p className={`text-xs tracking-[0.3em] ${def.rare ? "text-fuchsia-300/80" : "text-lamp/80"}`}>{def.rare ? "CAVE TREASURE" : "GET ITEM"}</p>
+        <p className={`mb-3 font-bold ${def.rare ? "text-fuchsia-200" : "text-lamp-light"}`}>{def.rare ? "洞窟の秘宝を手に入れた!" : "アイテムを手に入れた!"}</p>
         <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-2xl bg-white/[0.06] text-6xl">{def.icon}</div>
         <p className="text-2xl font-black">{def.name}</p>
         <p className="mt-2 text-sm text-white/80">{def.description}</p>

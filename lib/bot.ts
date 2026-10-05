@@ -30,7 +30,9 @@ export function botAct(room: RoomState, botId: string): RoomState {
               ? rand(own)
               : def.target === "cell"
                 ? Math.floor(Math.random() * room.cells.length)
-                : null;
+                : def.target === "seenCell"
+                  ? rand(room.cells.flatMap((c, i) => (c.t === "plain" && !room.players.some((p) => p.pos === i) ? [i] : [])))
+                  : null;
         try {
           return applyItem(room, botId, index, target);
         } catch {

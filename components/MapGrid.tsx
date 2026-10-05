@@ -75,6 +75,8 @@ interface Props {
   followTight: boolean;
   /** Changing this shakes the board (bombs, big captures). */
   shakeKey: number;
+  /** Colors under 聖域 (their cells get a golden rim). */
+  sanctuaryColors: number[];
 }
 
 function MapGrid({
@@ -92,6 +94,7 @@ function MapGrid({
   recenterKey,
   followTight,
   shakeKey,
+  sanctuaryColors,
 }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -233,7 +236,11 @@ function MapGrid({
                 } ${cell.t === "river" ? "zh-river" : ""}`}
                 style={{
                   background: cell.t === "river" && cell.o < 0 ? undefined : base,
-                  boxShadow: hl ? `inset 0 0 0 2px ${hl === "step" ? "#f0b43c" : "#f7c964"}` : undefined,
+                  boxShadow: hl
+                    ? `inset 0 0 0 2px ${hl === "step" ? "#f0b43c" : "#f7c964"}`
+                    : cell.o >= 0 && sanctuaryColors.includes(cell.o)
+                      ? "inset 0 0 0 1px rgba(253, 224, 71, 0.75)"
+                      : undefined,
                 }}
               >
                 {fx && fx.kind !== "reveal" && (

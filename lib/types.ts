@@ -9,7 +9,24 @@ export interface Cell {
   o: number;
 }
 
-export type ItemKind = "dash" | "roller" | "bomb" | "scout" | "warp" | "barrier" | "jam" | "bridgeKit";
+export type ItemKind =
+  // common (chests)
+  | "dash"
+  | "roller"
+  | "bomb"
+  | "scout"
+  | "warp"
+  | "barrier"
+  | "jam"
+  | "bridgeKit"
+  // rare (caves only)
+  | "megaBomb"
+  | "ancientMap"
+  | "wideRoller"
+  | "sanctuary"
+  | "storm"
+  | "pegasus"
+  | "skates";
 
 export type GameMode = "teams" | "ffa";
 
@@ -56,7 +73,17 @@ export interface TurnState {
   remaining: number;
   /** Cells visited this move, starting with the start cell. */
   path: number[];
-  mods: { roller: boolean; noOverwrite: boolean; ignoreForest: boolean; moveDelta: number; doubleDice: boolean };
+  mods: {
+    roller: boolean;
+    /** 極太ローラー: paint two cells to each side. */
+    wideRoller: boolean;
+    /** ローラースケート: opponents' color costs half. */
+    skates: boolean;
+    noOverwrite: boolean;
+    ignoreForest: boolean;
+    moveDelta: number;
+    doubleDice: boolean;
+  };
   /** Items offered when leaving a cave (pick one). */
   caveChoices: ItemKind[];
 }
@@ -120,6 +147,8 @@ export interface RoomState {
   locked: number[];
   /** Flags each color holds right now (public). */
   flagCounts: number[];
+  /** 聖域: a color's cells can't be repainted by others while active. Ends when `turnsLeft` of its user's turns have started. */
+  sanctuaries: { color: number; playerId: string; turnsLeft: number }[];
   flagTotal: number;
   /** Paintable cell count, for the conquest bar. */
   paintable: number;

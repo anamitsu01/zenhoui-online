@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ITEM_BY_ID, RUINS_EFFECTS } from "@/lib/content";
 import { colorHex, withAlpha } from "@/lib/colors";
 import { legalSteps, neighbors4 } from "@/lib/gameEngine";
@@ -50,6 +50,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
   const [errorState, setErrorState] = useState<{ key: string; message: string | null }>({ key: "", message: null });
   const error = errorState.key === turnKey ? errorState.message : null;
   const activeTargeting = myTurn && turn?.stage === "start" ? targeting : null;
+  const boardRef = useRef<HTMLDivElement>(null);
   // Re-center the map on my piece when my turn starts, or when asked.
   const [recenter, setRecenter] = useState(0);
   const recenterKey = recenter * 100000 + (myTurn ? room.set * 100 + room.turnIndex : 0);
@@ -215,6 +216,16 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           )}
           </span>
         </div>
+        <div className="relative" ref={boardRef}>
+        {myTurn && turn?.stage === "start" && !activeTargeting && !bridgeAsk && (
+          <RollButton
+            anchor={boardRef}
+            busy={busy}
+            cave={me.cave ? { total: me.cave.total, need: room.settings.caveThreshold } : null}
+            onRoll={() => run(act("game:roll", {}))}
+          />
+        )}
+        <DiceResult room={room} viewerId={viewerId} anchor={boardRef} />
         <MapGrid
           sanctuaryColors={room.sanctuaries.map((s) => s.color)}
           focusCell={me.pos}
@@ -232,6 +243,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           highlights={highlights}
           onCellClick={onCellClick}
         />
+        </div>
         <Legend />
       </main>
 
@@ -262,6 +274,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       <EventCutIns room={room} viewerId={viewerId} />
       <ItemPickups items={me.items} />
       <RuinsPopups room={room} viewerId={viewerId} />
+      <BridgePopups room={room} viewerId={viewerId} />
     </div>
   );
 }
@@ -384,9 +397,7 @@ function ActionPanel({
         <p className="text-sm text-white/60">
           振った目の合計 <b className="text-lg text-ink">{me.cave.total}</b> / {room.settings.caveThreshold} で脱出(超えた分だけ進める)
         </p>
-        <PrimaryButton disabled={busy} onClick={() => run(act("game:roll", {}))}>
-          🎲 サイコロを振る
-        </PrimaryButton>
+        <p className="text-xs text-white/45">盤面中央のサイコロを振ってください</p>
       </div>
     );
   }
@@ -432,9 +443,7 @@ function ActionPanel({
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <PrimaryButton disabled={busy} onClick={() => run(act("game:roll", {}))}>
-              🎲 サイコロを振る
-            </PrimaryButton>
+            <p className="w-full text-xs text-white/45">アイテムを使うならサイコロの前に。準備ができたら盤面中央のサイコロを振ってください</p>
             {nearRiver && <BridgeHint>隣の光っている川をタップすると橋を架けられます(この手番は終了)</BridgeHint>}
           </div>
         )}
@@ -518,6 +527,11 @@ function ActionPanel({
           これ以上進めないので終了
         </SecondaryButton>
       )}
+      {canStep && turn.remaining === 0.5 && !room.players.some((p) => p.id !== me.id && p.pos === me.pos) && (
+        <SecondaryButton disabled={busy} onClick={() => run(act("game:endMove", { enterCave: false }))}>
+          ここで止まる(残り0.5は使わない)
+        </SecondaryButton>
+      )}
     </div>
   );
 }
@@ -577,8 +591,8 @@ const PIPS: Record<number, [number, number][]> = {
   6: [[0, 0], [2, 0], [0, 1], [2, 1], [0, 2], [2, 2]],
 };
 
-function Die({ value, size = "md" }: { value: number; size?: "md" | "lg" }) {
-  const dim = size === "lg" ? "h-16 w-16 p-2.5" : "h-11 w-11 p-1.5";
+function Die({ value, size = "md" }: { value: number; size?: "md" | "lg" | "xl" }) {
+  const dim = size === "xl" ? "h-24 w-24 p-3.5" : size === "lg" ? "h-16 w-16 p-2.5" : "h-11 w-11 p-1.5";
   // Flick through random faces for a moment, then land on the real roll.
   const [face, setFace] = useState((value % 6) + 1);
   useEffect(() => {
@@ -859,6 +873,190 @@ function Legend() {
  * appended on pickup and removed on use, so anything past the previously
  * seen count is new. Nothing pops on first load / reconnect.
  */
+// ---------------------------------------------------------------------------
+// The roll: a big die in the middle of the board, only when it's time to roll.
+
+/**
+ * Screen position of the middle of the board's visible part (the board can be
+ * taller than the screen), so center overlays are always in view.
+ */
+function useBoardCenter(anchor: RefObject<HTMLDivElement | null>) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const r = anchor.current?.getBoundingClientRect();
+        if (!r) return;
+        const top = Math.max(r.top, 0);
+        const bottom = Math.min(r.bottom, window.innerHeight);
+        const y = bottom - top > 120 ? (top + bottom) / 2 : window.innerHeight / 2;
+        setPos({ x: r.left + r.width / 2, y });
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [anchor]);
+  return pos;
+}
+
+function CenterLayer({ anchor, children }: { anchor: RefObject<HTMLDivElement | null>; children: React.ReactNode }) {
+  const pos = useBoardCenter(anchor);
+  if (!pos) return null;
+  return (
+    <div className="pointer-events-none fixed z-30 -translate-x-1/2 -translate-y-1/2" style={{ left: pos.x, top: pos.y }}>
+      {children}
+    </div>
+  );
+}
+
+function RollButton({
+  anchor,
+  busy,
+  cave,
+  onRoll,
+}: {
+  anchor: RefObject<HTMLDivElement | null>;
+  busy: boolean;
+  cave: { total: number; need: number } | null;
+  onRoll: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key === " " || e.key === "Enter") && !busy) {
+        e.preventDefault();
+        onRoll();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, onRoll]);
+  return (
+    <CenterLayer anchor={anchor}>
+      <button
+        disabled={busy}
+        onClick={onRoll}
+        className="zh-pop pointer-events-auto flex flex-col items-center gap-1 rounded-3xl border-2 border-lamp bg-panel/90 px-8 py-5 shadow-[0_0_40px_rgba(240,180,60,0.45)] backdrop-blur transition-transform hover:scale-105 disabled:opacity-50"
+      >
+        <span className="zh-wobble text-6xl">🎲</span>
+        <span className="text-lg font-black text-lamp">{cave ? "洞窟でサイコロを振る" : "サイコロを振る"}</span>
+        {cave && (
+          <span className="text-xs text-white/60">
+            合計 {cave.total} / {cave.need} で脱出
+          </span>
+        )}
+        <span className="text-[10px] text-white/35">タップ(スペースキーでも可)</span>
+      </button>
+    </CenterLayer>
+  );
+}
+
+const DICE_RESULT_MS = 1700;
+
+/** Shows my roll in the middle of the board for a moment (moves, or cave progress). */
+function DiceResult({ room, viewerId, anchor }: { room: RoomState; viewerId: string; anchor: RefObject<HTMLDivElement | null> }) {
+  const [seen, setSeen] = useState(() => room.log.length);
+  const from = seen > room.log.length ? 0 : seen;
+  let index = -1;
+  for (let i = from; i < room.log.length; i++) {
+    const e = room.log[i];
+    if ((e.type === "roll" || e.type === "caveRoll") && e.playerId === viewerId && e.dice.length) {
+      index = i;
+      break;
+    }
+  }
+  useEffect(() => {
+    if (index < 0) return;
+    const t = setTimeout(() => setSeen(index + 1), DICE_RESULT_MS);
+    return () => clearTimeout(t);
+  }, [index]);
+  if (index < 0) return null;
+  const e = room.log[index] as Extract<PublicEvent, { type: "roll" | "caveRoll" }>;
+  const need = room.settings.caveThreshold;
+  return (
+    <CenterLayer anchor={anchor}>
+      <div key={index} className="zh-dice-result flex flex-col items-center gap-2 rounded-3xl border-2 border-lamp/70 bg-panel/90 px-8 py-5 shadow-2xl backdrop-blur">
+        <span className="flex gap-3">
+          {e.dice.map((d, i) => (
+            <Die key={i} value={d} size="xl" />
+          ))}
+        </span>
+        {e.type === "roll" ? (
+          <p className="zh-reveal text-2xl font-black text-lamp">{e.steps}マス進める!</p>
+        ) : (
+          <div className="zh-reveal w-56 text-center">
+            <p className="text-lg font-black">
+              <CaveIcon /> +{e.roll} → 合計 <span className="text-lamp">{e.total}</span> / {need}
+            </p>
+            <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-lamp" style={{ width: `${Math.min(100, (e.total / need) * 100)}%` }} />
+            </div>
+            <p className="mt-1 text-sm font-bold text-white/80">{e.total >= need ? "脱出!" : `脱出まであと${need - e.total}`}</p>
+          </div>
+        )}
+      </div>
+    </CenterLayer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bridge building: shown when I build one, and again on the turn I sit out for it.
+
+const BRIDGE_MS = 2600;
+
+function BridgePopups({ room, viewerId }: { room: RoomState; viewerId: string }) {
+  const [seen, setSeen] = useState(() => room.log.length);
+  const from = seen > room.log.length ? 0 : seen;
+  let index = -1;
+  for (let i = from; i < room.log.length; i++) {
+    const e = room.log[i];
+    if ((e.type === "bridge" || e.type === "rest") && e.playerId === viewerId) {
+      index = i;
+      break;
+    }
+  }
+  useEffect(() => {
+    if (index < 0) return;
+    const t = setTimeout(() => setSeen(index + 1), BRIDGE_MS);
+    return () => clearTimeout(t);
+  }, [index]);
+  if (index < 0) return null;
+  const e = room.log[index] as Extract<PublicEvent, { type: "bridge" | "rest" }>;
+  const sub =
+    e.type === "rest"
+      ? "建設が続いているため、このターンは1回休み"
+      : e.rest
+        ? "完成まで、次のターンは1回休みです"
+        : "この手番は建設で終わります";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4" role="status" onClick={() => setSeen(index + 1)}>
+      <div key={index} className="zh-pop w-full max-w-xs rounded-2xl border-2 border-sky-400 bg-panel p-6 text-center shadow-[0_0_40px_rgba(56,189,248,0.4)]">
+        <p className="text-xs tracking-[0.3em] text-sky-300/80">{e.type === "rest" ? "1回休み" : "BRIDGE"}</p>
+        <div className="relative mx-auto my-3 h-24 w-56">
+          {/* river */}
+          <div className="zh-river absolute inset-x-0 bottom-0 h-10 rounded-lg" />
+          {/* planks being laid one by one */}
+          <div className="absolute inset-x-3 bottom-4 flex gap-1">
+            {Array.from({ length: 7 }, (_, k) => (
+              <span key={k} className="zh-plank h-3 flex-1 rounded-sm bg-amber-700 shadow" style={{ animationDelay: `${k * 0.22}s` }} />
+            ))}
+          </div>
+          <span className="zh-hammer absolute left-1/2 top-0 -translate-x-1/2 text-4xl">🔨</span>
+        </div>
+        <p className="text-xl font-black">🌉 橋を架けています…</p>
+        <p className="mt-1 text-sm text-white/70">{sub}</p>
+      </div>
+    </div>
+  );
+}
+
 /**
  * When I step on ruins: the die tumbles, then the effect for my next turn is
  * revealed (gold for a blessing, violet for a curse). Ruins already in the log

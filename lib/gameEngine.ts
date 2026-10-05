@@ -758,7 +758,7 @@ export function roll(room: RoomState, playerId: string): RoomState {
   if (player.cave) {
     turn.dice = rollDice(DICE_COUNT);
     player.cave.total += sum(turn.dice);
-    r.log.push({ type: "caveRoll", playerId, roll: sum(turn.dice), total: player.cave.total });
+    r.log.push({ type: "caveRoll", playerId, roll: sum(turn.dice), total: player.cave.total, dice: turn.dice });
     if (player.cave.total < r.settings.caveThreshold) {
       endTurn(r);
       return r;
@@ -890,7 +890,9 @@ export function endMove(room: RoomState, playerId: string, enterCaveHere: boolea
     if (turn.path.length < 2) throw new GameError("出たばかりの洞窟には入れません");
     enterCave(r, player);
   } else if (legalSteps(r, player, turn).length > 0) {
-    throw new GameError("まだ進めます(出た目の数だけ進んでください)");
+    // With only half a point left you may choose to stay put.
+    if (turn.remaining > 0.5) throw new GameError("まだ進めます(出た目の数だけ進んでください)");
+    if (occupiedByOther(r, player.pos, playerId)) throw new GameError("他のコマがいるマスには止まれません");
   }
   endTurn(r);
   return r;

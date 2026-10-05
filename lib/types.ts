@@ -96,7 +96,7 @@ export type PublicEvent =
   | { type: "chest"; playerId: string; color: number }
   | { type: "ruins"; playerId: string; roll: number }
   | { type: "caveEnter"; playerId: string }
-  | { type: "caveRoll"; playerId: string; roll: number; total: number }
+  | { type: "caveRoll"; playerId: string; roll: number; total: number; dice: number[] }
   | { type: "caveExit"; playerId: string; extra: number }
   | { type: "bridge"; playerId: string; rest: boolean }
   | { type: "rest"; playerId: string }

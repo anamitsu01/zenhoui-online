@@ -80,6 +80,9 @@ export function SoundDirector({ room, viewerId }: { room: RoomState; viewerId: s
         case "bridge":
           play("bridge");
           break;
+        case "rest":
+          if (e.playerId === viewerId) play("bridge");
+          break;
         case "score":
           play("setEnd");
           break;

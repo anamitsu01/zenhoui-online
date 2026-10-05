@@ -345,3 +345,86 @@ body {
 .zh-ruins-rays {
   animation: zh-ruins-rays 0.9s ease-out both;
 }
+
+/* Roll button die wobbles to invite a tap. */
+@keyframes zh-wobble {
+  0%,
+  100% {
+    transform: rotate(-8deg) scale(1);
+  }
+  50% {
+    transform: rotate(8deg) scale(1.08);
+  }
+}
+.zh-wobble {
+  display: inline-block;
+  animation: zh-wobble 0.9s ease-in-out infinite;
+}
+
+/* Dice result: pops in, holds, fades out. */
+@keyframes zh-dice-result {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  12%,
+  80% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+.zh-dice-result {
+  animation: zh-dice-result 1.7s ease-out both;
+}
+/* The text under the dice appears once they settle. */
+@keyframes zh-reveal {
+  0%,
+  30% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  45%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.zh-reveal {
+  animation: zh-reveal 1.7s ease-out both;
+}
+
+/* Bridge building: the hammer knocks, planks drop into place. */
+@keyframes zh-hammer {
+  0%,
+  100% {
+    transform: translateX(-50%) rotate(-30deg);
+  }
+  50% {
+    transform: translateX(-50%) rotate(25deg);
+  }
+}
+.zh-hammer {
+  transform-origin: 70% 80%;
+  animation: zh-hammer 0.32s ease-in-out infinite;
+}
+@keyframes zh-plank {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px) rotate(-10deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.zh-plank {
+  animation: zh-plank 0.35s ease-out both;
+}

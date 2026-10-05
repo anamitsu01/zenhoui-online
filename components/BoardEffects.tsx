@@ -65,9 +65,8 @@ export function SoundDirector({ room, viewerId }: { room: RoomState; viewerId: s
         case "chest":
           play("chest", { volume: e.playerId === viewerId ? 1 : 0.5 });
           break;
-        case "ruins":
-          // The finder hears it from the popup (timed with the reveal).
-          if (e.playerId !== viewerId) play("ruins", { volume: 0.5 });
+        case "caveItem":
+          if (e.item) play("chest", { volume: e.playerId === viewerId ? 1 : 0.5 });
           break;
         case "item":
           play(e.item === "bomb" || e.item === "megaBomb" || e.item === "missile" || e.item === "storm" ? "bomb" : e.item === "sanctuary" || e.item === "ancientMap" ? "flag" : "item");

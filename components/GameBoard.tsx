@@ -272,9 +272,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       )}
       <SoundDirector room={room} viewerId={viewerId} />
       <EventCutIns room={room} viewerId={viewerId} />
-      <ItemPickups items={me.items} />
-      <RuinsPopups room={room} viewerId={viewerId} />
-      <BridgePopups room={room} viewerId={viewerId} />
+      <EventPopups room={room} viewerId={viewerId} />
     </div>
   );
 }
@@ -780,7 +778,11 @@ function eventText(room: RoomState, e: PublicEvent): string {
     case "item":
       return `${name(e.playerId)}が${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name}を使った${e.targetName ? `(${e.targetName}へ)` : ""}`;
     case "chest":
-      return `${name(e.playerId)}が🎁宝箱を開けた`;
+      return `${name(e.playerId)}が🎁宝箱を開けた: ${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name}`;
+    case "caveItem":
+      return e.item
+        ? `${name(e.playerId)}が洞窟の秘宝 ${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name} を手に入れた`
+        : `${name(e.playerId)}は秘宝を受け取らなかった`;
     case "ruins": {
       const r = RUINS_EFFECTS.find((x) => x.roll === e.roll);
       return `${name(e.playerId)}が🏛️遺跡を踏んだ: ${e.roll}「${r?.name}」${r?.description}`;
@@ -802,7 +804,7 @@ function eventText(room: RoomState, e: PublicEvent): string {
     case "score":
       return e.leader < 0
         ? `第${e.set}セット結果: 同数のため得点なし`
-        : `第${e.set}セット結果: ${teamLabel(room, e.leader)} +${e.gained[e.leader]}点(陣地+1・フラッグ${e.flags[e.leader]})`;
+        : `第${e.set}セット結果: ${teamLabel(room, e.leader)} +${e.gained[e.leader]}点`;
     case "skip":
       return `${name(e.playerId)}の手番を飛ばした`;
     case "flagReach":
@@ -1007,42 +1009,101 @@ function DiceResult({ room, viewerId, anchor }: { room: RoomState; viewerId: str
 }
 
 // ---------------------------------------------------------------------------
-// Bridge building: shown when I build one, and again on the turn I sit out for it.
+// Popups for the big moments — items, ruins, bridges — shown to every player
+// in log order. On your own you close it (OK); everyone else's passes by on
+// its own without blocking the board. Events already in the log when the
+// screen opened are not replayed.
 
-const BRIDGE_MS = 2600;
+type PopupEvent = Extract<PublicEvent, { type: "chest" | "caveItem" | "ruins" | "bridge" | "rest" }>;
 
-function BridgePopups({ room, viewerId }: { room: RoomState; viewerId: string }) {
+function isPopupEvent(e: PublicEvent): e is PopupEvent {
+  return e.type === "chest" || (e.type === "caveItem" && e.item !== null) || e.type === "ruins" || e.type === "bridge" || e.type === "rest";
+}
+
+function EventPopups({ room, viewerId }: { room: RoomState; viewerId: string }) {
   const [seen, setSeen] = useState(() => room.log.length);
-  const from = seen > room.log.length ? 0 : seen;
+  const from = seen > room.log.length ? 0 : seen; // a rematch starts a fresh log
   let index = -1;
   for (let i = from; i < room.log.length; i++) {
-    const e = room.log[i];
-    if ((e.type === "bridge" || e.type === "rest") && e.playerId === viewerId) {
+    if (isPopupEvent(room.log[i])) {
       index = i;
       break;
     }
   }
-  useEffect(() => {
-    if (index < 0) return;
-    const t = setTimeout(() => setSeen(index + 1), BRIDGE_MS);
-    return () => clearTimeout(t);
-  }, [index]);
   if (index < 0) return null;
-  const e = room.log[index] as Extract<PublicEvent, { type: "bridge" | "rest" }>;
+  const e = room.log[index] as PopupEvent;
+  const own = e.playerId === viewerId;
+  const who = own ? "あなた" : room.players.find((p) => p.id === e.playerId)?.name ?? "だれか";
+  const close = () => setSeen(index + 1);
+  if (e.type === "chest" || e.type === "caveItem") return <ItemGotPopup key={index} item={e.item!} own={own} who={who} onClose={close} />;
+  if (e.type === "ruins") return <RuinsPopup key={index} roll={e.roll} own={own} who={who} onClose={close} />;
+  return <BridgePopup key={index} kind={e.type === "rest" ? "rest" : e.rest ? "midMove" : "start"} own={own} who={who} onClose={close} />;
+}
+
+/** Own popups are modal; others' float without blocking and close themselves after `autoMs`. */
+function PopupShell({
+  own,
+  onClose,
+  autoMs,
+  canClose = true,
+  children,
+}: {
+  own: boolean;
+  onClose: () => void;
+  autoMs?: number;
+  canClose?: boolean;
+  children: React.ReactNode;
+}) {
+  // The parent re-renders on every room update with a fresh onClose; keep the
+  // latest one in a ref so the auto-close timer is not restarted each time.
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    if (!autoMs) return;
+    const t = setTimeout(() => closeRef.current(), autoMs);
+    return () => clearTimeout(t);
+  }, [autoMs]);
+  useEffect(() => {
+    if (!own) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (canClose && (ev.key === "Enter" || ev.key === "Escape")) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [own, canClose, onClose]);
+  return own ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" onClick={() => canClose && onClose()}>
+      <div onClick={(ev) => ev.stopPropagation()} className="w-full max-w-xs">
+        {children}
+      </div>
+    </div>
+  ) : (
+    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center px-4" role="status">
+      <div className="pointer-events-auto w-full max-w-xs cursor-pointer" onClick={onClose} title="タップで閉じる">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const OTHERS_POPUP_MS = 2600;
+const BRIDGE_MS = 2600;
+
+function BridgePopup({ kind, own, who, onClose }: { kind: "start" | "midMove" | "rest"; own: boolean; who: string; onClose: () => void }) {
   const sub =
-    e.type === "rest"
-      ? "建設が続いているため、このターンは1回休み"
-      : e.rest
-        ? "完成まで、次のターンは1回休みです"
-        : "この手番は建設で終わります";
+    kind === "rest"
+      ? `建設が続いているため、${own ? "このターン" : "このターンは"}1回休み`
+      : kind === "midMove"
+        ? "完成まで、次のターンは1回休み"
+        : "この手番は建設で終わり";
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4" role="status" onClick={() => setSeen(index + 1)}>
-      <div key={index} className="zh-pop w-full max-w-xs rounded-2xl border-2 border-sky-400 bg-panel p-6 text-center shadow-[0_0_40px_rgba(56,189,248,0.4)]">
-        <p className="text-xs tracking-[0.3em] text-sky-300/80">{e.type === "rest" ? "1回休み" : "BRIDGE"}</p>
+    <PopupShell own={own} onClose={onClose} autoMs={BRIDGE_MS}>
+      <div className="zh-pop rounded-2xl border-2 border-sky-400 bg-panel p-6 text-center shadow-[0_0_40px_rgba(56,189,248,0.4)]">
+        <p className="text-xs tracking-[0.3em] text-sky-300/80">{kind === "rest" ? "1回休み" : "BRIDGE"}</p>
         <div className="relative mx-auto my-3 h-24 w-56">
-          {/* river */}
           <div className="zh-river absolute inset-x-0 bottom-0 h-10 rounded-lg" />
-          {/* planks being laid one by one */}
           <div className="absolute inset-x-3 bottom-4 flex gap-1">
             {Array.from({ length: 7 }, (_, k) => (
               <span key={k} className="zh-plank h-3 flex-1 rounded-sm bg-amber-700 shadow" style={{ animationDelay: `${k * 0.22}s` }} />
@@ -1050,68 +1111,40 @@ function BridgePopups({ room, viewerId }: { room: RoomState; viewerId: string })
           </div>
           <span className="zh-hammer absolute left-1/2 top-0 -translate-x-1/2 text-4xl">🔨</span>
         </div>
-        <p className="text-xl font-black">🌉 橋を架けています…</p>
+        <p className="text-xl font-black">🌉 {own ? "" : `${who}が`}橋を架けています…</p>
         <p className="mt-1 text-sm text-white/70">{sub}</p>
       </div>
-    </div>
+    </PopupShell>
   );
-}
-
-/**
- * When I step on ruins: the die tumbles, then the effect for my next turn is
- * revealed (gold for a blessing, violet for a curse). Ruins already in the log
- * when the screen opened are not replayed.
- */
-function RuinsPopups({ room, viewerId }: { room: RoomState; viewerId: string }) {
-  const [seen, setSeen] = useState(() => room.log.length);
-  const from = seen > room.log.length ? 0 : seen; // a rematch starts a fresh log
-  let index = -1;
-  for (let i = from; i < room.log.length; i++) {
-    const e = room.log[i];
-    if (e.type === "ruins" && e.playerId === viewerId) {
-      index = i;
-      break;
-    }
-  }
-  if (index < 0) return null;
-  const e = room.log[index] as Extract<PublicEvent, { type: "ruins" }>;
-  return <RuinsPopup key={index} roll={e.roll} onClose={() => setSeen(index + 1)} />;
 }
 
 const RUINS_REVEAL_MS = 650;
 
-function RuinsPopup({ roll, onClose }: { roll: number; onClose: () => void }) {
+/** The die tumbles, then the effect for the next turn is revealed (gold = blessing, violet = curse). */
+function RuinsPopup({ roll, own, who, onClose }: { roll: number; own: boolean; who: string; onClose: () => void }) {
   const effect = RUINS_EFFECTS.find((r) => r.roll === roll)!;
   const [revealed, setRevealed] = useState(false);
   useEffect(() => {
-    play("ruins");
+    play("ruins", { volume: own ? 1 : 0.6 });
     const t = setTimeout(() => {
       setRevealed(true);
-      play(effect.good ? "ruinsGood" : "ruinsBad");
+      play(effect.good ? "ruinsGood" : "ruinsBad", { volume: own ? 1 : 0.6 });
     }, RUINS_REVEAL_MS);
     return () => clearTimeout(t);
-  }, [effect.good]);
-  useEffect(() => {
-    const onKey = (ev: KeyboardEvent) => {
-      if (revealed && (ev.key === "Enter" || ev.key === "Escape")) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [revealed, onClose]);
+  }, [effect.good, own]);
 
   const tone = effect.good
     ? { border: "border-lamp", glow: "rgba(240,180,60,0.55)", text: "text-lamp-light", label: "遺跡の加護" }
     : { border: "border-violet-400", glow: "rgba(167,139,250,0.55)", text: "text-violet-300", label: "遺跡の呪い" };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4" role="dialog" aria-modal="true" onClick={() => revealed && onClose()}>
+    <PopupShell own={own} onClose={onClose} canClose={revealed} autoMs={own ? undefined : RUINS_REVEAL_MS + OTHERS_POPUP_MS}>
       <div
-        className={`zh-pop relative w-full max-w-xs overflow-hidden rounded-2xl border-2 bg-panel p-6 text-center shadow-2xl ${revealed ? tone.border : "border-white/20"}`}
+        className={`zh-pop relative overflow-hidden rounded-2xl border-2 bg-panel p-6 text-center shadow-2xl ${revealed ? tone.border : "border-white/20"}`}
         style={revealed ? { boxShadow: `0 0 40px 6px ${tone.glow}` } : undefined}
-        onClick={(ev) => ev.stopPropagation()}
       >
         {revealed && <span className="zh-ruins-rays pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at 50% 38%, ${tone.glow}, transparent 60%)` }} />}
         <p className="relative text-xs tracking-[0.3em] text-white/50">ANCIENT RUINS</p>
-        <p className="relative mb-3 font-bold text-white/80">🏛️ 遺跡が目を覚ました…</p>
+        <p className="relative mb-3 font-bold text-white/80">🏛️ {own ? "遺跡が目を覚ました…" : `${who}が遺跡を踏んだ…`}</p>
         <div className="relative mb-3 flex justify-center">
           <Die value={roll} size="lg" />
         </div>
@@ -1121,63 +1154,52 @@ function RuinsPopup({ roll, onClose }: { roll: number; onClose: () => void }) {
             <p className="mt-1 text-5xl">{effect.icon}</p>
             <p className="mt-1 text-2xl font-black">{effect.name}</p>
             <p className="mt-2 text-sm text-white/80">{effect.description}</p>
-            <p className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-white/50">効果はあなたの次のターンに発動します。</p>
-            <button
-              onClick={onClose}
-              className={`mt-4 w-full rounded-full px-6 py-2.5 font-bold text-black ${effect.good ? "bg-lamp hover:bg-lamp-light" : "bg-violet-300 hover:bg-violet-200"}`}
-            >
-              OK
-            </button>
+            <p className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-white/50">効果は{own ? "あなた" : who}の次のターンに発動します。</p>
+            {own && (
+              <button
+                onClick={onClose}
+                className={`mt-4 w-full rounded-full px-6 py-2.5 font-bold text-black ${effect.good ? "bg-lamp hover:bg-lamp-light" : "bg-violet-300 hover:bg-violet-200"}`}
+              >
+                OK
+              </button>
+            )}
           </div>
         ) : (
           <p className="relative animate-pulse py-6 text-sm text-white/50">運命のサイコロが転がる…</p>
         )}
       </div>
-    </div>
+    </PopupShell>
   );
 }
 
-function ItemPickups({ items }: { items: ItemKind[] }) {
-  const key = items.join(",");
-  const [seen, setSeen] = useState({ key, count: items.length });
-  const [queue, setQueue] = useState<ItemKind[]>([]);
-  if (seen.key !== key) {
-    if (items.length > seen.count) setQueue((q) => [...q, ...items.slice(seen.count)]);
-    setSeen({ key, count: items.length });
-  }
-  if (!queue.length) return null;
-  return <ItemGotPopup item={queue[0]} more={queue.length - 1} onClose={() => setQueue((q) => q.slice(1))} />;
-}
-
-function ItemGotPopup({ item, more, onClose }: { item: ItemKind; more: number; onClose: () => void }) {
+function ItemGotPopup({ item, own, who, onClose }: { item: ItemKind; own: boolean; who: string; onClose: () => void }) {
   const def = ITEM_BY_ID[item];
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const what = def.rare ? "洞窟の秘宝" : "アイテム";
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" onClick={onClose}>
+    <PopupShell own={own} onClose={onClose} autoMs={own ? undefined : OTHERS_POPUP_MS}>
       <div
-        className={`zh-pop w-full max-w-xs rounded-2xl border-2 bg-panel p-6 text-center shadow-2xl ${def.rare ? "border-fuchsia-400" : "border-lamp"}`}
+        className={`zh-pop rounded-2xl border-2 bg-panel p-6 text-center shadow-2xl ${def.rare ? "border-fuchsia-400" : "border-lamp"}`}
         style={def.rare ? { boxShadow: "0 0 40px 6px rgba(232,121,249,0.45)" } : undefined}
-        onClick={(e) => e.stopPropagation()}
       >
         <p className={`text-xs tracking-[0.3em] ${def.rare ? "text-fuchsia-300/80" : "text-lamp/80"}`}>{def.rare ? "CAVE TREASURE" : "GET ITEM"}</p>
-        <p className={`mb-3 font-bold ${def.rare ? "text-fuchsia-200" : "text-lamp-light"}`}>{def.rare ? "洞窟の秘宝を手に入れた!" : "アイテムを手に入れた!"}</p>
+        <p className={`mb-3 font-bold ${def.rare ? "text-fuchsia-200" : "text-lamp-light"}`}>
+          {own ? `${what}を手に入れた!` : `${who}が${what}を手に入れた!`}
+        </p>
         <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-2xl bg-white/[0.06] text-6xl">{def.icon}</div>
         <p className="text-2xl font-black">{def.name}</p>
         <p className="mt-2 text-sm text-white/80">{def.description}</p>
-        <p className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-white/50">
-          自分の手番の最初(サイコロを振る前)に使えます。最大{MAX_ITEMS}個まで持てます。
-        </p>
-        <button onClick={onClose} className="mt-4 w-full rounded-full bg-lamp px-6 py-2.5 font-bold text-black hover:bg-lamp-light">
-          OK{more > 0 && `(あと${more}個)`}
-        </button>
+        {own && (
+          <>
+            <p className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-white/50">
+              自分の手番の最初(サイコロを振る前)に使えます。最大{MAX_ITEMS}個まで持てます。
+            </p>
+            <button onClick={onClose} className="mt-4 w-full rounded-full bg-lamp px-6 py-2.5 font-bold text-black hover:bg-lamp-light">
+              OK
+            </button>
+          </>
+        )}
       </div>
-    </div>
+    </PopupShell>
   );
 }
 
@@ -1216,7 +1238,7 @@ function SetResultBanner({ room }: { room: RoomState }) {
         )}
         <p className="mt-1 text-xs text-white/55">
           {visible.counts.map((n, c) => `${teamLabel(room, c)} ${n}マス`).join(" ・ ")}
-          {visible.leader >= 0 && visible.flags[visible.leader] > 0 && ` ・ フラッグ${visible.flags[visible.leader]}本`}
+
         </p>
       </div>
     </div>

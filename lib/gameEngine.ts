@@ -719,7 +719,7 @@ function scoreSet(room: RoomState) {
     if (cell.f === "flag" && cell.o >= 0) flags[cell.o]++;
   });
   const gained = Array(room.colorCount).fill(0);
-  if (leader >= 0) gained[leader] = 1 + flags[leader];
+  if (leader >= 0) gained[leader] = 1;
   room.scores = room.scores.map((s, c) => s + gained[c]);
   room.lastScoring = { set: room.set, counts, leader, flags, gained };
   room.log.push({ type: "score", set: room.set, counts, leader, flags, gained });
@@ -804,6 +804,7 @@ export function takeCaveItem(room: RoomState, playerId: string, index: number): 
     player.items.push(item);
     player.itemCount = player.items.length;
   }
+  r.log.push({ type: "caveItem", playerId, item: index >= 0 ? turn.caveChoices[index] : null });
   turn.caveChoices = [];
   if (turn.remaining > 0) {
     turn.stage = "move";
@@ -842,10 +843,11 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
 
   const cell = r.cells[to];
   if (cell.f === "chest" && player.items.length < MAX_ITEMS) {
-    player.items.push(randomItem());
+    const got = randomItem();
+    player.items.push(got);
     player.itemCount = player.items.length;
     cell.f = null;
-    r.log.push({ type: "chest", playerId, color: player.color });
+    r.log.push({ type: "chest", playerId, color: player.color, item: got });
   } else if (cell.f === "ruins") {
     const d = die();
     applyRuins(player, d);

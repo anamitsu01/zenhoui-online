@@ -32,7 +32,7 @@ export function RulesContent({ className = "" }: { className?: string }) {
         <b className="text-ink">霧</b>: 自分のコマの周囲2マスまでが見える。一度晴れたマスは見えたまま。味方同士で視界を共有する。
       </p>
       <p>
-        <b className="text-ink">得点</b>: 全員が1回ずつ動いたら1セット終了。そのときマスが一番多い陣営に1点、さらにその陣営が支配しているフラッグ1本につき+1点。
+        <b className="text-ink">得点</b>: 全員が1回ずつ動いたら1セット終了。そのときマスが一番多い陣営に1点。
         同数なら誰にも入らない。
       </p>
       <p>

@@ -428,3 +428,31 @@ body {
 .zh-plank {
   animation: zh-plank 0.35s ease-out both;
 }
+
+/* Cave entry: the mound shakes as someone ducks inside. */
+@keyframes zh-cave-enter {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  35% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  45%,
+  65% {
+    transform: scale(1) rotate(-4deg);
+  }
+  55%,
+  75% {
+    transform: scale(1) rotate(4deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+.zh-cave-enter {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  animation: zh-cave-enter 1s ease-out both;
+}

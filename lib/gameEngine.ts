@@ -408,8 +408,10 @@ function dealNewGame(prev: RoomState): RoomState {
   room.winReason = null;
 
   const shuffledStarts = shuffle(starts);
+  // Each color's players in a random order (so the host isn't always first).
+  const byColor = Array.from({ length: colorCount }, (_, c) => shuffle(room.players.filter((p) => p.color === c)));
   for (let c = 0; c < colorCount; c++) {
-    const members = room.players.filter((p) => p.color === c);
+    const members = byColor[c];
     members.forEach((p, i) => {
       // Individual mode: one player per corner. Team mode: everyone takes their own scattered spot.
       const base = ffa ? starts[c] : shuffledStarts.pop()!;
@@ -427,11 +429,12 @@ function dealNewGame(prev: RoomState): RoomState {
   }
   for (const p of room.players) reveal(room, p.color, p.pos, VISION, p.id);
 
-  // Teams alternate (青1 → 赤1 → 青2 → 赤2 ...); ffa goes in join order.
-  const byColor = Array.from({ length: colorCount }, (_, c) => room.players.filter((p) => p.color === c));
+  // Random turn order: teams still alternate (e.g. 赤1 → 青1 → 赤2 → 青2 ...) but
+  // which team starts is random; in ffa the colors go in a random order.
+  const turnLists = shuffle(byColor);
   const order: string[] = [];
   for (let i = 0; order.length < room.players.length; i++) {
-    for (const list of byColor) if (list[i]) order.push(list[i].id);
+    for (const list of turnLists) if (list[i]) order.push(list[i].id);
   }
   room.order = order;
   room.phase = "playing";

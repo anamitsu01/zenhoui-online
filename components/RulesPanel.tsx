@@ -40,7 +40,7 @@ export function RulesContent({ className = "" }: { className?: string }) {
         フラッグを同時に規定本数(既定5本)支配したら即勝利。あと1本になると「リーチ」が告げられる。
       </p>
       <p>
-        <b className="text-ink">手番の順番</b>: チーム戦は青1→赤1→青2→赤2…と交互。個人戦は参加順。
+        <b className="text-ink">手番の順番</b>: ゲーム開始時にランダムに決まる。チーム戦は両チームが交互に動く(どちらが先かもランダム)。
       </p>
 
       <details className="rounded-lg bg-white/[0.03] p-3">

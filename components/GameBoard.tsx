@@ -1018,10 +1018,10 @@ function DiceResult({ room, viewerId, anchor }: { room: RoomState; viewerId: str
 // its own without blocking the board. Events already in the log when the
 // screen opened are not replayed.
 
-type PopupEvent = Extract<PublicEvent, { type: "chest" | "caveItem" | "ruins" | "bridge" | "rest" }>;
+type PopupEvent = Extract<PublicEvent, { type: "chest" | "caveItem" | "ruins" | "bridge" | "rest" | "caveEnter" }>;
 
 function isPopupEvent(e: PublicEvent): e is PopupEvent {
-  return e.type === "chest" || (e.type === "caveItem" && (e.item !== null || !!e.hidden)) || e.type === "ruins" || e.type === "bridge" || e.type === "rest";
+  return e.type === "chest" || (e.type === "caveItem" && (e.item !== null || !!e.hidden)) || e.type === "ruins" || e.type === "bridge" || e.type === "rest" || e.type === "caveEnter";
 }
 
 function EventPopups({ room, viewerId }: { room: RoomState; viewerId: string }) {
@@ -1042,6 +1042,7 @@ function EventPopups({ room, viewerId }: { room: RoomState; viewerId: string }) 
   if (e.type === "chest" || e.type === "caveItem")
     return <ItemGotPopup key={index} item={e.item} rare={e.type === "caveItem"} own={own} who={who} onClose={close} />;
   if (e.type === "ruins") return <RuinsPopup key={index} roll={e.roll} own={own} who={who} onClose={close} />;
+  if (e.type === "caveEnter") return <CaveEnterPopup key={index} own={own} who={who} need={room.settings.caveThreshold} onClose={close} />;
   return <BridgePopup key={index} kind={e.type === "rest" ? "rest" : e.rest ? "midMove" : "start"} own={own} who={who} onClose={close} />;
 }
 
@@ -1095,6 +1096,27 @@ function PopupShell({
 
 const OTHERS_POPUP_MS = 2600;
 const BRIDGE_MS = 2600;
+
+const CAVE_ENTER_MS = 2600;
+
+function CaveEnterPopup({ own, who, need, onClose }: { own: boolean; who: string; need: number; onClose: () => void }) {
+  return (
+    <PopupShell own={own} onClose={onClose} autoMs={CAVE_ENTER_MS}>
+      <div className="zh-pop rounded-2xl border-2 border-amber-700 bg-panel p-6 text-center shadow-[0_0_40px_rgba(180,110,40,0.45)]">
+        <p className="text-xs tracking-[0.3em] text-amber-500/80">CAVE</p>
+        <div className="relative mx-auto my-3 flex h-24 w-24 items-end justify-center">
+          <span className="zh-cave-enter text-7xl leading-none">
+            <CaveIcon size="1em" />
+          </span>
+        </div>
+        <p className="text-xl font-black">{own ? "洞窟に入った!" : `${who}が洞窟に入った!`}</p>
+        <p className="mt-1 text-sm text-white/70">
+          次のターンから毎ターンサイコロを振り、合計{need}以上で秘宝を手に脱出{own ? "できる" : "する"}
+        </p>
+      </div>
+    </PopupShell>
+  );
+}
 
 function BridgePopup({ kind, own, who, onClose }: { kind: "start" | "midMove" | "rest"; own: boolean; who: string; onClose: () => void }) {
   const sub =

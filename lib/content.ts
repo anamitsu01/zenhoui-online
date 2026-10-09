@@ -19,7 +19,7 @@ export const ITEMS: ItemDef[] = [
   { id: "bomb", name: "爆弾", icon: "💣", description: "自分の周囲8マスを自分の色にする", target: "none" },
   { id: "scout", name: "偵察", icon: "🔭", description: "好きなマスを中心に7×7の霧を晴らす", target: "cell" },
   { id: "warp", name: "ワープ", icon: "🌀", description: "自分の色の好きなマスへ移動(その後サイコロを振る)", target: "ownCell" },
-  { id: "barrier", name: "防壁", icon: "🛡️", description: "指定マスのまわり4×4(左上1マス〜右下2マス)の自分のマスを、次の自分の手番まで塗り替え不可にする", target: "ownCell" },
+  { id: "barrier", name: "防壁", icon: "🛡️", description: "指定マスを中心に3×3の自分のマスを、次の自分の手番まで塗り替え不可にする", target: "ownCell" },
   { id: "jam", name: "妨害", icon: "🪤", description: "相手1人の次のターンの移動力-2", target: "enemy" },
   { id: "bridgeKit", name: "橋キット", icon: "🪵", description: "自分のコマの隣の川に、手番を使わず橋を架ける(移動中でも使える)", target: "riverCell" },
 ];

@@ -988,12 +988,7 @@ export function applyItem(room: RoomState, playerId: string, index: number, targ
     case "barrier": {
       const c = cellTarget(r, target);
       if (r.cells[c].o !== player.color) throw new GameError("自分の色のマスを選んでください");
-      const [tx, ty] = xy(r.size, c);
-      const cells: number[] = [];
-      for (let y = ty - 1; y <= ty + 2; y++)
-        for (let x = tx - 1; x <= tx + 2; x++) {
-          if (inBounds(r.size, x, y) && r.cells[idx(r.size, x, y)].o === player.color) cells.push(idx(r.size, x, y));
-        }
+      const cells = square(r.size, c, 1).filter((s) => r.cells[s].o === player.color);
       r.barriers.push({ playerId, color: player.color, cells });
       break;
     }

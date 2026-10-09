@@ -38,7 +38,7 @@ const FX_LIMIT = 700;
  * step/target are outlined; "line" (the way a step leads, out to the edge) is
  * faintly lit; "any" is clickable without a mark (e.g. scouting anywhere).
  */
-export type HighlightKind = "step" | "target" | "line" | "any";
+export type HighlightKind = "step" | "target" | "line" | "any" | "preview";
 
 function hash(i: number): number {
   let h = (i + 1) * 2654435761;
@@ -265,6 +265,7 @@ function MapGrid({
                 )}
                 {hl && <span className="absolute inset-[30%] rounded-full bg-lamp/40" />}
                 {clickable === "line" && <span className="absolute inset-[38%] rounded-full bg-lamp/30" />}
+                {clickable === "preview" && <span className="zh-preview pointer-events-none absolute inset-0" />}
               </button>
             );
           })}

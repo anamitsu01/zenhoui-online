@@ -456,3 +456,19 @@ body {
   transform-origin: 50% 100%;
   animation: zh-cave-enter 1s ease-out both;
 }
+
+/* Item target preview: the affected area glows until confirmed. */
+@keyframes zh-preview {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+.zh-preview {
+  background: rgba(240, 180, 60, 0.45);
+  box-shadow: inset 0 0 0 2px #f7c964;
+  animation: zh-preview 1s ease-in-out infinite;
+}

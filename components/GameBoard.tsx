@@ -38,6 +38,41 @@ function directionalStep(size: number, from: number, tapped: number, steps: numb
   return steps.includes(step) ? step : null;
 }
 
+/** Cells an item would affect if used on `cell` (for the confirmation preview). */
+function itemArea(item: ItemKind, cell: number, size: number): number[] {
+  const radius = item === "barrier" ? 1 : item === "scout" ? 3 : item === "ancientMap" ? 5 : 0;
+  const x = cell % size;
+  const y = Math.floor(cell / size);
+  const out: number[] = [];
+  for (let dy = -radius; dy <= radius; dy++)
+    for (let dx = -radius; dx <= radius; dx++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < size && ny < size) out.push(ny * size + nx);
+    }
+  return out;
+}
+
+/** Whether `cell` is a valid target for the item (mirrors the server's checks). */
+function isItemTarget(room: RoomState, me: Player, item: ItemKind | undefined, cell: number): boolean {
+  if (!item) return false;
+  const def = ITEM_BY_ID[item];
+  const c = room.cells[cell];
+  const occupied = room.players.some((p) => p.pos === cell && p.id !== me.id);
+  switch (def.target) {
+    case "cell":
+      return true;
+    case "ownCell":
+      return c.o === me.color && !(item === "warp" && occupied);
+    case "riverCell":
+      return c.t === "river" && neighbors4(room.size, me.pos).includes(cell);
+    case "seenCell":
+      return isPassable(c.t) && !occupied;
+    default:
+      return false;
+  }
+}
+
 export default function GameBoard({ room, viewerId, act }: { room: RoomState; viewerId: string; act: Act }) {
   const me = room.players.find((p) => p.id === viewerId)!;
   const turn = room.turn;
@@ -45,6 +80,8 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
   const myTurn = !!turn && turn.playerId === me.id;
   const [busy, setBusy] = useState(false);
   const [targeting, setTargeting] = useState<Targeting>(null);
+  // A tapped target waiting for "この範囲でいいですか?" (tapping another cell re-picks).
+  const [picked, setPicked] = useState<{ index: number; cell: number } | null>(null);
   // Errors are tied to the turn state they happened in, so they vanish once the game moves on.
   const turnKey = `${room.set}-${room.turnIndex}-${turn?.stage}-${turn?.path.length}`;
   const [errorState, setErrorState] = useState<{ key: string; message: string | null }>({ key: "", message: null });
@@ -84,6 +121,9 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
     [bridgeStage, standingOnOther, room.size, room.cells, me.pos]
   );
 
+  const activePick = activeTargeting && picked?.index === activeTargeting.index ? picked : null;
+  const pickedItem = activeTargeting ? me.items[activeTargeting.index] : undefined;
+
   const highlights = useMemo(() => {
     const map = new Map<number, HighlightKind>();
     if (activeTargeting?.kind === "item") {
@@ -102,6 +142,8 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           if (isPassable(c.t) && !room.players.some((p) => p.pos === i && p.id !== me.id)) map.set(i, "line");
         });
       }
+      // Light up exactly what the picked target would affect.
+      if (activePick && def) for (const c of itemArea(def.id, activePick.cell, room.size)) map.set(c, "preview");
     } else if (steps.length) {
       // Moving: the whole board is tappable (a tap picks a direction, see
       // directionalStep), and each open direction's line is lit to the edge.
@@ -118,7 +160,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
     }
     if (!activeTargeting) for (const c of bridgeRivers) map.set(c, "target");
     return map;
-  }, [activeTargeting, steps, room, me, bridgeRivers]);
+  }, [activeTargeting, activePick, steps, room, me, bridgeRivers]);
 
   const onCellClick = useCallback(
     (cell: number) => {
@@ -126,14 +168,14 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       if (!activeTargeting && bridgeRivers.includes(cell)) {
         setBridgeAsk({ cell, midMove: turn?.stage === "move" });
       } else if (activeTargeting?.kind === "item") {
-        setTargeting(null);
-        run(act("game:useItem", { index: activeTargeting.index, target: cell }));
+        // Only cells the item can target (preview cells stay tappable to re-pick).
+        if (isItemTarget(room, me, me.items[activeTargeting.index], cell)) setPicked({ index: activeTargeting.index, cell });
       } else {
         const target = directionalStep(room.size, me.pos, cell, steps);
         if (target !== null) run(act("game:step", { cell: target }));
       }
     },
-    [busy, activeTargeting, steps, run, act, room.size, me.pos, bridgeRivers, turn?.stage]
+    [busy, activeTargeting, steps, run, act, room, me, bridgeRivers, turn?.stage]
   );
 
   // Arrow keys / WASD walk the piece.
@@ -181,7 +223,10 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
               turn={turn!}
               busy={busy}
               targeting={activeTargeting}
-              setTargeting={setTargeting}
+              setTargeting={(t) => {
+                setPicked(null);
+                setTargeting(t);
+              }}
               canStep={steps.length > 0}
               run={run}
               act={act}
@@ -255,6 +300,22 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
       </aside>
 
       <SetResultBanner room={room} />
+      {activePick && pickedItem && (
+        <ItemTargetConfirm
+          item={pickedItem}
+          busy={busy}
+          onConfirm={() => {
+            setTargeting(null);
+            setPicked(null);
+            run(act("game:useItem", { index: activePick.index, target: activePick.cell }));
+          }}
+          onRepick={() => setPicked(null)}
+          onCancel={() => {
+            setPicked(null);
+            setTargeting(null);
+          }}
+        />
+      )}
       {bridgeAsk && (
         <ConfirmDialog
           title="🌉 ここに橋を架けますか?"
@@ -912,6 +973,50 @@ function Legend() {
  * appended on pickup and removed on use, so anything past the previously
  * seen count is new. Nothing pops on first load / reconnect.
  */
+// ---------------------------------------------------------------------------
+// "この範囲でいいですか?" — floats at the bottom so the lit preview stays visible.
+
+function ItemTargetConfirm({
+  item,
+  busy,
+  onConfirm,
+  onRepick,
+  onCancel,
+}: {
+  item: ItemKind;
+  busy: boolean;
+  onConfirm: () => void;
+  onRepick: () => void;
+  onCancel: () => void;
+}) {
+  const def = ITEM_BY_ID[item];
+  const question =
+    item === "warp" || item === "pegasus"
+      ? "光っているマスへ移動しますか?"
+      : item === "bridgeKit"
+        ? "光っている川に橋を架けますか?"
+        : item === "barrier"
+          ? "この範囲(光っている3×3の自分のマス)を守りますか?"
+          : "この範囲でいいですか?";
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+      <div className="zh-pop pointer-events-auto w-full max-w-md rounded-2xl border-2 border-lamp bg-panel/95 p-4 text-center shadow-2xl backdrop-blur">
+        <p className="text-sm font-bold">
+          {def.icon} {def.name}: {question}
+        </p>
+        <p className="mt-0.5 text-xs text-white/50">別のマスをタップすると選び直せます</p>
+        <div className="mt-3 flex justify-center gap-2">
+          <SecondaryButton onClick={onCancel}>使わない</SecondaryButton>
+          <SecondaryButton onClick={onRepick}>選び直す</SecondaryButton>
+          <PrimaryButton disabled={busy} onClick={onConfirm}>
+            決定
+          </PrimaryButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The roll: a big die in the middle of the board, only when it's time to roll.
 

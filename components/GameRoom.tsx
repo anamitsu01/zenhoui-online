@@ -138,7 +138,7 @@ export default function GameRoom({ code }: { code: string }) {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="text-lg font-black tracking-widest text-ink/80">
-          全方位<span className="text-lamp">すごろく</span>
+          陣取り<span className="text-lamp">ゲーム</span>
         </span>
         <div className="flex gap-2">
           <button

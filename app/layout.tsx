@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "全方位すごろく",
-  description: "サイコロの目だけ好きな方向へ進み、通った道を塗って囲む陣取りすごろく",
+  title: "陣取りゲーム",
+  description: "サイコロの目だけ好きな方向へ進み、通った道を塗って囲む陣取りゲーム",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -298,6 +298,6 @@ app.prepare().then(() => {
   });
 
   httpServer.listen(port, hostname, () => {
-    console.log(`> Zenhoui Sugoroku ready on http://${hostname}:${port}`);
+    console.log(`> Jintori Game ready on http://${hostname}:${port}`);
   });
 });

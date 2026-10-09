@@ -47,9 +47,9 @@ export default function Home() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-20">
       <div className="w-full max-w-md text-center">
-        <p className="mb-3 text-xs tracking-[0.5em] text-lamp/80">OMNIDIRECTIONAL SUGOROKU</p>
+        <p className="mb-3 text-xs tracking-[0.5em] text-lamp/80">TERRITORY DICE GAME</p>
         <h1 className="mb-4 text-5xl font-black tracking-widest text-ink">
-          全方位<span className="text-lamp">すごろく</span>
+          陣取り<span className="text-lamp">ゲーム</span>
         </h1>
         <p className="mb-10 text-sm leading-relaxed text-white/55">
           サイコロの目の数だけ、好きな方向へ。通った道は自分の色に、囲めば陣地に。

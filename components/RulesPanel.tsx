@@ -67,7 +67,7 @@ export function RulesContent({ className = "" }: { className?: string }) {
         </ul>
       </details>
       <details className="rounded-lg bg-white/[0.03] p-3">
-        <summary className="cursor-pointer font-semibold text-ink">アイテム(手番の最初、サイコロを振る前に使う。最大3個)</summary>
+        <summary className="cursor-pointer font-semibold text-ink">アイテム(手番の最初、サイコロを振る前に使う。橋キットは移動中も可。持てるのは3個まで、4個目を手に入れたら1つ捨てる)</summary>
         <ul className="mt-2 space-y-1">
           {ITEMS.map((i) => (
             <li key={i.id}>

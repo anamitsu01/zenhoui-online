@@ -54,7 +54,9 @@ function startBot(i: number) {
     } else if (turn.stage === "chooseDie") {
       act(() => socket.emit("game:chooseDie", { code, index: turn.dice.indexOf(Math.min(...turn.dice)) }, done));
     } else if (turn.stage === "caveItem") {
-      act(() => socket.emit("game:caveItem", { code, index: self.items.length < 3 ? 0 : -1 }, done));
+      act(() => socket.emit("game:caveItem", { code, index: 0 }, done));
+    } else if (turn.stage === "discard") {
+      act(() => socket.emit("game:discardItem", { code, index: Math.floor(Math.random() * self.items.length) }, done));
     } else if (turn.stage === "move") {
       const options = legalSteps(room, self, turn);
       // Prefer unpainted / enemy cells so bots spread out a bit.

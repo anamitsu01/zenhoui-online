@@ -10,6 +10,7 @@ import {
   chooseDie,
   chooseTeam,
   createRoom,
+  discardItem,
   endMove,
   GameError,
   hostSkip,
@@ -239,6 +240,10 @@ app.prepare().then(() => {
 
     socket.on("game:caveItem", ({ code, index }, cb) => {
       withRoom(code, (room) => takeCaveItem(room, socket.data.playerId ?? socket.id, index), cb);
+    });
+
+    socket.on("game:discardItem", ({ code, index }, cb) => {
+      withRoom(code, (room) => discardItem(room, socket.data.playerId ?? socket.id, index), cb);
     });
 
     socket.on("game:bridge", ({ code, cell }, cb) => {

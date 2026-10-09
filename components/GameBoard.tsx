@@ -49,7 +49,8 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
   const turnKey = `${room.set}-${room.turnIndex}-${turn?.stage}-${turn?.path.length}`;
   const [errorState, setErrorState] = useState<{ key: string; message: string | null }>({ key: "", message: null });
   const error = errorState.key === turnKey ? errorState.message : null;
-  const activeTargeting = myTurn && turn?.stage === "start" ? targeting : null;
+  const activeTargeting =
+    myTurn && (turn?.stage === "start" || (turn?.stage === "move" && targeting && me.items[targeting.index] === "bridgeKit")) ? targeting : null;
   const boardRef = useRef<HTMLDivElement>(null);
   // Re-center the map on my piece when my turn starts, or when asked.
   const [recenter, setRecenter] = useState(0);
@@ -140,6 +141,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
     if (!myTurn || turn?.stage !== "move") return;
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (activeTargeting) return; // picking a river for the bridge kit
       const d: Record<string, [number, number]> = {
         ArrowUp: [0, -1],
         ArrowDown: [0, 1],
@@ -160,7 +162,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [myTurn, turn?.stage, me.pos, room.size, onCellClick]);
+  }, [myTurn, turn?.stage, me.pos, room.size, onCellClick, activeTargeting]);
 
   const stuckActor = actor && !actor.connected && actor.id !== me.id ? actor : undefined;
 
@@ -239,7 +241,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           followTight={myTurn && turn?.stage === "move"}
           shakeKey={shakeCount(room)}
           path={turn?.path ?? []}
-          locked={room.locked}
+          locked={room.barriers.flatMap((b) => b.cells.filter((c) => room.cells[c]?.o === b.color))}
           highlights={highlights}
           onCellClick={onCellClick}
         />
@@ -381,6 +383,7 @@ function ActionPanel({
           {turn.stage === "chooseDie" && "使うサイコロを選んでいます"}
           {turn.stage === "move" && `移動中(残り ${turn.remaining})`}
           {turn.stage === "caveItem" && "洞窟でアイテムを選んでいます"}
+          {turn.stage === "discard" && "持ち物がいっぱいなので、アイテムを1つ捨てています"}
         </p>
       </div>
     );
@@ -486,10 +489,10 @@ function ActionPanel({
         <p className="font-bold text-lamp">洞窟から脱出! 秘宝を1つ選んでください</p>
         <div className="flex flex-wrap justify-center gap-2">
           {turn.caveChoices.map((it, i) => (
-            <ItemButton key={i} item={it} disabled={busy || full} onClick={() => run(act("game:caveItem", { index: i }))} />
+            <ItemButton key={i} item={it} disabled={busy} onClick={() => run(act("game:caveItem", { index: i }))} />
           ))}
         </div>
-        {full && <p className="text-xs text-white/50">アイテムは{MAX_ITEMS}個までしか持てません</p>}
+        {full && <p className="text-xs text-white/50">持ち物がいっぱい({MAX_ITEMS}個)なので、受け取ったら1つ捨てます</p>}
         <SecondaryButton disabled={busy} onClick={() => run(act("game:caveItem", { index: -1 }))}>
           受け取らない
         </SecondaryButton>
@@ -498,8 +501,31 @@ function ActionPanel({
     );
   }
 
+  if (turn.stage === "discard") {
+    return (
+      <div className="flex flex-col items-center gap-2 py-1 text-center">
+        <p className="font-bold text-lamp">持ち物がいっぱいです! 捨てるアイテムを1つ選んでください</p>
+        <p className="text-xs text-white/50">持てるのは{MAX_ITEMS}個まで。今手に入れたものを捨ててもかまいません</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {me.items.map((it, i) => (
+            <ItemButton key={i} item={it} disabled={busy} onClick={() => run(act("game:discardItem", { index: i }))} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // move
   const onCave = room.cells[me.pos]?.f === "cave" && turn.path.length >= 2;
+  const kitIndex = me.items.indexOf("bridgeKit");
+  if (targeting && turn.stage === "move") {
+    return (
+      <div className="flex flex-col items-center gap-2 py-1 text-center">
+        <p className="text-sm">🪵 橋キット: 橋を架ける隣の川を選んでください(手番はそのまま続きます)</p>
+        <SecondaryButton onClick={() => setTargeting(null)}>キャンセル</SecondaryButton>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 py-1 text-center">
       {turn.dice.length > 0 && <DiceRow dice={turn.dice} />}
@@ -514,6 +540,11 @@ function ActionPanel({
       <p className="w-full text-xs text-white/45 sm:w-auto">進みたい方向の点線上をタップ(矢印キー・WASDでも移動)</p>
       {nearRiver && !room.players.some((p) => p.id !== me.id && p.pos === me.pos) && (
         <BridgeHint>隣の光っている川をタップすると橋を架けられます(移動はここまで・次のターンは1回休み)</BridgeHint>
+      )}
+      {nearRiver && kitIndex >= 0 && (
+        <SecondaryButton disabled={busy} onClick={() => setTargeting({ kind: "item", index: kitIndex })}>
+          🪵 橋キットで橋を架ける(移動を続けられる)
+        </SecondaryButton>
       )}
       {onCave && (
         <SecondaryButton disabled={busy} onClick={() => run(act("game:endMove", { enterCave: true }))}>
@@ -781,6 +812,8 @@ function eventText(room: RoomState, e: PublicEvent): string {
       return e.item
         ? `${name(e.playerId)}が🎁宝箱を開けた: ${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name}`
         : `${name(e.playerId)}が🎁宝箱を開けた`;
+    case "discard":
+      return e.item ? `${name(e.playerId)}が${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name}を捨てた` : `${name(e.playerId)}がアイテムを1つ捨てた`;
     case "caveItem":
       return e.item
         ? `${name(e.playerId)}が洞窟の秘宝 ${ITEM_BY_ID[e.item].icon}${ITEM_BY_ID[e.item].name} を手に入れた`
@@ -1219,7 +1252,7 @@ function ItemGotPopup({ item, rare, own, who, onClose }: { item: ItemKind | null
         {own && (
           <>
             <p className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-white/50">
-              自分の手番の最初(サイコロを振る前)に使えます。最大{MAX_ITEMS}個まで持てます。
+              自分の手番の最初(サイコロを振る前)に使えます(橋キットは移動中も可)。持てるのは{MAX_ITEMS}個までで、4個目を手に入れたら1つ捨てます。
             </p>
             <button onClick={onClose} className="mt-4 w-full rounded-full bg-lamp px-6 py-2.5 font-bold text-black hover:bg-lamp-light">
               OK

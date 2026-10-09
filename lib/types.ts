@@ -63,7 +63,7 @@ export interface Player {
   resting: boolean;
 }
 
-export type TurnStage = "start" | "chooseDie" | "move" | "caveItem";
+export type TurnStage = "start" | "chooseDie" | "move" | "caveItem" | "discard";
 
 export interface TurnState {
   playerId: string;
@@ -96,6 +96,7 @@ export type PublicEvent =
   /** `hidden`: the item is kept from opponents (item is null for them). */
   | { type: "chest"; playerId: string; color: number; item: ItemKind | null; hidden?: boolean }
   | { type: "caveItem"; playerId: string; item: ItemKind | null; hidden?: boolean }
+  | { type: "discard"; playerId: string; item: ItemKind | null; hidden?: boolean }
   | { type: "ruins"; playerId: string; roll: number }
   | { type: "caveEnter"; playerId: string }
   | { type: "caveRoll"; playerId: string; roll: number; total: number; dice: number[] }
@@ -147,7 +148,8 @@ export interface RoomState {
   /** Flag cells somebody has discovered (visible to everyone). */
   knownFlags: number[];
   /** Cells protected by a barrier until the next scoring. */
-  locked: number[];
+  /** 防壁: own-color cells its user's opponents can't repaint, until that player's next turn. */
+  barriers: { playerId: string; color: number; cells: number[] }[];
   /** Flags each color holds right now (public). */
   flagCounts: number[];
   /** 聖域: a color's cells can't be repainted by others while active. Ends when `turnsLeft` of its user's turns have started. */

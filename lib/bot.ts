@@ -1,7 +1,7 @@
 import { ITEM_BY_ID } from "./content";
-import { applyItem, buildBridge, chooseDie, endMove, legalSteps, neighbors4, roll, step, takeCaveItem } from "./gameEngine";
+import { applyItem, buildBridge, chooseDie, discardItem, endMove, legalSteps, neighbors4, roll, step, takeCaveItem } from "./gameEngine";
 import type { RoomState } from "./types";
-import { MAX_ITEMS } from "./types";
+
 
 function rand<T>(a: T[]): T {
   return a[Math.floor(Math.random() * a.length)];
@@ -46,7 +46,8 @@ export function botAct(room: RoomState, botId: string): RoomState {
   }
 
   if (turn.stage === "chooseDie") return chooseDie(room, botId, turn.dice.indexOf(Math.min(...turn.dice)));
-  if (turn.stage === "caveItem") return takeCaveItem(room, botId, bot.items.length < MAX_ITEMS ? 0 : -1);
+  if (turn.stage === "caveItem") return takeCaveItem(room, botId, 0);
+  if (turn.stage === "discard") return discardItem(room, botId, Math.floor(Math.random() * bot.items.length));
 
   const options = legalSteps(room, bot, turn);
   if (!options.length) return endMove(room, botId, false);

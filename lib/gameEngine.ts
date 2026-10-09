@@ -146,7 +146,7 @@ export function createRoom(hostId: string, hostName: string, isTest = false): Ro
     cells: [],
     seen: [],
     knownFlags: [],
-    locked: [],
+    barriers: [],
     sanctuaries: [],
     flagCounts: [],
     flagTotal: 0,
@@ -396,7 +396,7 @@ function dealNewGame(prev: RoomState): RoomState {
   room.cells = map.t.map((t, i) => ({ t, f: map.f[i], o: -1 }));
   room.seen = Array.from({ length: colorCount }, () => "0".repeat(size * size));
   room.knownFlags = [];
-  room.locked = [];
+  room.barriers = [];
   room.sanctuaries = [];
   room.flagCounts = Array(colorCount).fill(0);
   room.flagTotal = room.cells.filter((c) => c.f === "flag").length;
@@ -500,7 +500,7 @@ function isProtected(room: RoomState, cell: number, painter: number): boolean {
   if (room.players.some((p) => p.cave && p.pos === cell)) return true;
   const owner = room.cells[cell].o;
   if (owner >= 0 && owner !== painter && room.sanctuaries.some((s) => s.color === owner)) return true;
-  return room.locked.includes(cell) && room.cells[cell].o !== painter;
+  return room.barriers.some((b) => b.color !== painter && room.cells[cell].o === b.color && b.cells.includes(cell));
 }
 
 /** Returns true when the cell changed color. */
@@ -656,6 +656,8 @@ function beginTurn(room: RoomState) {
   const player = byId(room, room.order[room.turnIndex]);
   // 聖域 wears off as its user's turns come around.
   for (const s of room.sanctuaries) if (s.playerId === player.id) s.turnsLeft--;
+  // 防壁 lasts until its user's next turn.
+  room.barriers = room.barriers.filter((b) => b.playerId !== player.id);
   room.sanctuaries = room.sanctuaries.filter((s) => s.turnsLeft > 0);
   // 1回休み: the turn passes straight on (it still counts toward the set).
   if (player.resting) {
@@ -726,7 +728,6 @@ function scoreSet(room: RoomState) {
   room.scores = room.scores.map((s, c) => s + gained[c]);
   room.lastScoring = { set: room.set, counts, leader, flags, gained };
   room.log.push({ type: "score", set: room.set, counts, leader, flags, gained });
-  room.locked = [];
 }
 
 function endTurn(room: RoomState) {
@@ -803,17 +804,16 @@ export function takeCaveItem(room: RoomState, playerId: string, index: number): 
   if (index >= 0) {
     const item = turn.caveChoices[index];
     if (!item) throw new GameError("アイテムを選んでください");
-    if (player.items.length >= MAX_ITEMS) throw new GameError(`アイテムは${MAX_ITEMS}個までしか持てません`);
     player.items.push(item);
     player.itemCount = player.items.length;
   }
   r.log.push({ type: "caveItem", playerId, item: index >= 0 ? turn.caveChoices[index] : null });
   turn.caveChoices = [];
-  if (turn.remaining > 0) {
-    turn.stage = "move";
-  } else {
-    endTurn(r);
+  if (player.items.length > MAX_ITEMS) {
+    turn.stage = "discard";
+    return r;
   }
+  continueMove(r, player, turn);
   return r;
 }
 
@@ -845,7 +845,7 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
   }
 
   const cell = r.cells[to];
-  if (cell.f === "chest" && player.items.length < MAX_ITEMS) {
+  if (cell.f === "chest") {
     const got = randomItem();
     player.items.push(got);
     player.itemCount = player.items.length;
@@ -861,14 +861,37 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
   afterPaint(r, player);
   if (checkFlagWin(r)) return r;
 
+  if (player.items.length > MAX_ITEMS) {
+    turn.stage = "discard"; // pick one to throw away, then the move goes on
+    return r;
+  }
+  continueMove(r, player, turn);
+  return r;
+}
+
+/** After a step (or a discard): end the move when it's used up or stuck. */
+function continueMove(r: RoomState, player: Player, turn: TurnState) {
+  turn.stage = "move";
+  const cell = r.cells[player.pos];
   if (turn.remaining === 0) {
-    if (cell.f === "cave") enterCave(r, player);
+    if (cell.f === "cave" && turn.path.length >= 2) enterCave(r, player);
     endTurn(r);
   } else if (cell.f !== "cave" && legalSteps(r, player, turn).length === 0) {
     // Leftover movement that can't be spent (e.g. half a point with no own
     // cell next to you): the move just ends. On a cave, let the player choose.
     endTurn(r);
   }
+}
+
+/** With a 4th item in hand, throw one away (it may be the one just found). */
+export function discardItem(room: RoomState, playerId: string, index: number): RoomState {
+  const { r, player, turn } = actorTurn(room, playerId, ["discard"]);
+  const item = player.items[index];
+  if (!item) throw new GameError("捨てるアイテムを選んでください");
+  player.items.splice(index, 1);
+  player.itemCount = player.items.length;
+  r.log.push({ type: "discard", playerId, item });
+  continueMove(r, player, turn);
   return r;
 }
 
@@ -928,10 +951,11 @@ function placeBridge(room: RoomState, player: Player, cell: number) {
 }
 
 export function applyItem(room: RoomState, playerId: string, index: number, target: number | string | null): RoomState {
-  const { r, player, turn } = actorTurn(room, playerId, ["start"]);
+  const { r, player, turn } = actorTurn(room, playerId, ["start", "move"]);
   if (player.cave) throw new GameError("洞窟の中ではアイテムを使えません");
   const item = player.items[index];
   if (!item) throw new GameError("アイテムがありません");
+  if (turn.stage === "move" && item !== "bridgeKit") throw new GameError("移動中に使えるのは橋キットだけです");
   const def = ITEM_BY_ID[item];
   let targetName: string | undefined;
 
@@ -964,9 +988,13 @@ export function applyItem(room: RoomState, playerId: string, index: number, targ
     case "barrier": {
       const c = cellTarget(r, target);
       if (r.cells[c].o !== player.color) throw new GameError("自分の色のマスを選んでください");
-      for (const s of square(r.size, c, 1)) {
-        if (r.cells[s].o === player.color && !r.locked.includes(s)) r.locked.push(s);
-      }
+      const [tx, ty] = xy(r.size, c);
+      const cells: number[] = [];
+      for (let y = ty - 1; y <= ty + 2; y++)
+        for (let x = tx - 1; x <= tx + 2; x++) {
+          if (inBounds(r.size, x, y) && r.cells[idx(r.size, x, y)].o === player.color) cells.push(idx(r.size, x, y));
+        }
+      r.barriers.push({ playerId, color: player.color, cells });
       break;
     }
     case "jam": {
@@ -1067,6 +1095,9 @@ export function hostSkip(room: RoomState, requesterId: string): RoomState {
   const actor = byId(room, room.turn.playerId);
   if (actor.connected) throw new GameError("そのプレイヤーは接続中です");
   const r = structuredClone(room);
+  const a = byId(r, actor.id);
+  if (a.items.length > MAX_ITEMS) a.items.splice(MAX_ITEMS);
+  a.itemCount = a.items.length;
   r.log.push({ type: "skip", playerId: actor.id });
   endTurn(r);
   return r;
@@ -1087,7 +1118,7 @@ export function sanitizeForPlayer(room: RoomState, viewerId: string): RoomState 
   // Opponents learn that an item was found, not which one.
   const colorOf = (id: string) => room.players.find((p) => p.id === id)?.color;
   const log = room.log.map((e) =>
-    (e.type === "chest" || e.type === "caveItem") && e.item && colorOf(e.playerId) !== color ? { ...e, item: null, hidden: true } : e
+    (e.type === "chest" || e.type === "caveItem" || e.type === "discard") && e.item && colorOf(e.playerId) !== color ? { ...e, item: null, hidden: true } : e
   );
   return {
     ...room,

@@ -18,6 +18,7 @@ export interface ClientToServerEvents {
   "game:step": (payload: { code: string; cell: number }, cb: Ack) => void;
   "game:endMove": (payload: { code: string; enterCave: boolean }, cb: Ack) => void;
   "game:caveItem": (payload: { code: string; index: number }, cb: Ack) => void;
+  "game:discardItem": (payload: { code: string; index: number }, cb: Ack) => void;
   "game:bridge": (payload: { code: string; cell: number }, cb: Ack) => void;
   "game:useItem": (payload: { code: string; index: number; target: number | string | null }, cb: Ack) => void;
   "game:hostSkip": (payload: { code: string }, cb: Ack) => void;

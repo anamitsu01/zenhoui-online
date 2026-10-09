@@ -208,6 +208,11 @@ function MapGrid({
         <div
           ref={gridRef}
           className="relative grid w-full select-none"
+          // One handler for every cell, so cells don't need a fresh callback each update.
+          onClick={(e) => {
+            const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-i]");
+            if (btn && !btn.disabled) onCellClick(Number(btn.dataset.i));
+          }}
           style={{
             border: `3px solid ${EDGE_COLOR}`,
             boxShadow: `0 0 0 1px #000, 0 0 14px ${EDGE_COLOR}55`,
@@ -218,55 +223,21 @@ function MapGrid({
           }}
         >
           {cells.map((cell, i) => {
-            const clickable = highlights.get(i);
-            const hl = clickable === "step" || clickable === "target" ? clickable : undefined;
             const fx = fxByCell.get(i);
-            const icon = cell.f ? FEATURE_ICON[cell.f] : TERRAIN_ICON[cell.t];
-            const sway = cell.t === "forest" && !cell.f;
-            const base = fx && fx.kind !== "reveal" ? fx.from : cellBg(cell, i, mode);
             return (
-              <button
+              <CellView
                 key={i}
-                type="button"
-                tabIndex={-1}
-                disabled={!clickable}
-                onClick={() => onCellClick(i)}
-                className={`relative flex aspect-square items-center justify-center leading-none ${
-                  clickable ? "cursor-pointer hover:brightness-150" : "cursor-default"
-                } ${cell.t === "river" ? "zh-river" : ""}`}
-                style={{
-                  background: cell.t === "river" && cell.o < 0 ? undefined : base,
-                  boxShadow: hl
-                    ? `inset 0 0 0 2px ${hl === "step" ? "#f0b43c" : "#f7c964"}`
-                    : cell.o >= 0 && sanctuaryColors.includes(cell.o)
-                      ? "inset 0 0 0 1px rgba(253, 224, 71, 0.75)"
-                      : undefined,
-                }}
-              >
-                {fx && fx.kind !== "reveal" && (
-                  <span
-                    className={`absolute inset-0 ${fx.kind === "splat" ? "zh-splat" : "zh-fill"}`}
-                    style={{ background: fx.to, animationDelay: `${fx.delay}ms` }}
-                  />
-                )}
-                {cell.t !== "unknown" && (
-                  <>
-                    {icon && (
-                      <span className={`relative ${sway ? "zh-sway" : ""}`} style={sway ? { animationDelay: `${-(hash(i) % 30) / 10}s` } : undefined}>
-                        {icon}
-                      </span>
-                    )}
-                    {pathSet.has(i) && <span className="absolute h-[22%] w-[22%] rounded-full bg-white/80" />}
-                    {lockedSet.has(i) && <span className="absolute right-0 top-0 text-[0.45em]">🛡️</span>}
-                  </>
-                )}
-                {fx?.kind === "reveal" && (
-                  <span className="zh-unfog absolute inset-0" style={{ background: fx.from, animationDelay: `${fx.delay}ms` }} />
-                )}
-                {hl && <span className="absolute inset-[30%] rounded-full bg-lamp/40" />}
-                {clickable === "line" && <span className="absolute inset-[38%] rounded-full bg-lamp/30" />}
-                {clickable === "preview" && <span className="zh-preview pointer-events-none absolute inset-0" />}
-              </button>
+                i={i}
+                t={cell.t}
+                f={cell.f}
+                bg={fx && fx.kind !== "reveal" ? fx.from : cellBg(cell, i, mode)}
+                unpaintedRiver={cell.t === "river" && cell.o < 0}
+                mark={highlights.get(i)}
+                sanctuary={cell.o >= 0 && sanctuaryColors.includes(cell.o)}
+                onPath={pathSet.has(i)}
+                locked={lockedSet.has(i)}
+                fx={fx}
+              />
             );
           })}
           <PieceLayer size={size} mode={mode} players={players} actorId={actorId} remaining={remaining} />
@@ -275,6 +246,76 @@ function MapGrid({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// One board cell. Memoized on plain values so a step only re-renders the few
+// cells that actually changed, not the whole board (1,600+ cells on 41×41).
+
+const CellView = memo(function CellView({
+  i,
+  t,
+  f,
+  bg,
+  unpaintedRiver,
+  mark,
+  sanctuary,
+  onPath,
+  locked,
+  fx,
+}: {
+  i: number;
+  t: Terrain;
+  f: Cell["f"];
+  bg: string;
+  unpaintedRiver: boolean;
+  mark: HighlightKind | undefined;
+  sanctuary: boolean;
+  onPath: boolean;
+  locked: boolean;
+  fx: Fx | undefined;
+}) {
+  const hl = mark === "step" || mark === "target" ? mark : undefined;
+  const icon = f ? FEATURE_ICON[f] : TERRAIN_ICON[t];
+  const sway = t === "forest" && !f;
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      data-i={i}
+      disabled={!mark}
+      className={`relative flex aspect-square items-center justify-center leading-none ${
+        mark ? "cursor-pointer hover:brightness-150" : "cursor-default"
+      } ${t === "river" ? "zh-river" : ""}`}
+      style={{
+        background: unpaintedRiver ? undefined : bg,
+        boxShadow: hl
+          ? `inset 0 0 0 2px ${hl === "step" ? "#f0b43c" : "#f7c964"}`
+          : sanctuary
+            ? "inset 0 0 0 1px rgba(253, 224, 71, 0.75)"
+            : undefined,
+      }}
+    >
+      {fx && fx.kind !== "reveal" && (
+        <span className={`absolute inset-0 ${fx.kind === "splat" ? "zh-splat" : "zh-fill"}`} style={{ background: fx.to, animationDelay: `${fx.delay}ms` }} />
+      )}
+      {t !== "unknown" && (
+        <>
+          {icon && (
+            <span className={`relative ${sway ? "zh-sway" : ""}`} style={sway ? { animationDelay: `${-(hash(i) % 30) / 10}s` } : undefined}>
+              {icon}
+            </span>
+          )}
+          {onPath && <span className="absolute h-[22%] w-[22%] rounded-full bg-white/80" />}
+          {locked && <span className="absolute right-0 top-0 text-[0.45em]">🛡️</span>}
+        </>
+      )}
+      {fx?.kind === "reveal" && <span className="zh-unfog absolute inset-0" style={{ background: fx.from, animationDelay: `${fx.delay}ms` }} />}
+      {hl && <span className="absolute inset-[30%] rounded-full bg-lamp/40" />}
+      {mark === "line" && <span className="absolute inset-[38%] rounded-full bg-lamp/30" />}
+      {mark === "preview" && <span className="zh-preview pointer-events-none absolute inset-0" />}
+    </button>
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Pieces live in their own layer over the grid so they can glide and hop
@@ -341,12 +382,16 @@ function Piece({
     <div
       className="absolute"
       style={{
-        // The grid has 1px gaps: each cell pitch is (width + 1px) / size.
-        left: `calc((100% + 1px) * ${x} / ${size})`,
-        top: `calc((100% + 1px) * ${y} / ${size})`,
+        // One cell big, moved with transform so the glide runs on the GPU (smooth on
+        // phones even on big boards). The grid has 1px gaps, so the cell pitch is
+        // the piece's own width + 1px.
+        left: 0,
+        top: 0,
         width: `calc((100% + 1px) / ${size} - 1px)`,
         height: `calc((100% + 1px) / ${size} - 1px)`,
-        transition: "left 0.2s ease-in-out, top 0.2s ease-in-out",
+        transform: `translate3d(calc(${x} * (100% + 1px)), calc(${y} * (100% + 1px)), 0)`,
+        transition: "transform 0.2s ease-in-out",
+        willChange: "transform",
         zIndex: 10 + y,
       }}
       title={player.name}

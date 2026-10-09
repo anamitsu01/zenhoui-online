@@ -46,7 +46,7 @@ export function botAct(room: RoomState, botId: string): RoomState {
   }
 
   if (turn.stage === "bonus") return roll(room, botId);
-  if (turn.stage === "chooseDie") return chooseDie(room, botId, turn.dice.indexOf(Math.min(...turn.dice)));
+  if (turn.stage === "chooseDie") return chooseDie(room, botId, turn.dice.map((d, i) => [d, i]).sort((a, b) => b[0] - a[0]).slice(0, 2).map(([, i]) => i));
   if (turn.stage === "caveItem") return takeCaveItem(room, botId, 0);
   if (turn.stage === "discard") return discardItem(room, botId, Math.floor(Math.random() * bot.items.length));
 

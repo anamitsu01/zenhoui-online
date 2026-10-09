@@ -811,11 +811,14 @@ export function roll(room: RoomState, playerId: string): RoomState {
   return r;
 }
 
-export function chooseDie(room: RoomState, playerId: string, index: number): RoomState {
+/** 選べる運命: of the three dice rolled, keep the two the player picks. */
+export function chooseDie(room: RoomState, playerId: string, keep: number[]): RoomState {
   const { r, player, turn } = actorTurn(room, playerId, ["chooseDie"]);
-  // `index` is the die to leave out.
-  if (turn.dice[index] === undefined) throw new GameError("使わないサイコロを選んでください");
-  turn.dice = turn.dice.filter((_, i) => i !== index);
+  const picks = Array.isArray(keep) ? [...new Set(keep)] : [];
+  if (picks.length !== DICE_COUNT || picks.some((i) => !Number.isInteger(i) || turn.dice[i] === undefined)) {
+    throw new GameError(`使うサイコロを${DICE_COUNT}個選んでください`);
+  }
+  turn.dice = picks.sort((a, b) => a - b).map((i) => turn.dice[i]);
   startMoveOrBonus(r, turn, player);
   return r;
 }

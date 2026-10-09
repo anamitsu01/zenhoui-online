@@ -14,7 +14,7 @@ export interface ClientToServerEvents {
   "room:addBot": (payload: { code: string; color?: number }, cb: Ack) => void;
   "room:removeBot": (payload: { code: string; botId: string }, cb: Ack) => void;
   "game:roll": (payload: { code: string }, cb: Ack) => void;
-  "game:chooseDie": (payload: { code: string; index: number }, cb: Ack) => void;
+  "game:chooseDie": (payload: { code: string; keep: number[] }, cb: Ack) => void;
   "game:step": (payload: { code: string; cell: number }, cb: Ack) => void;
   "game:endMove": (payload: { code: string; enterCave: boolean }, cb: Ack) => void;
   "game:caveItem": (payload: { code: string; index: number }, cb: Ack) => void;

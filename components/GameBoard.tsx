@@ -540,18 +540,7 @@ function ActionPanel({
   }
 
   if (turn.stage === "chooseDie") {
-    return (
-      <div className="flex flex-col items-center gap-2 py-1 text-center">
-        <p className="font-bold text-lamp">選べる運命 — 使わないサイコロを1つ選んでください</p>
-        <div className="flex gap-3">
-          {turn.dice.map((d, i) => (
-            <button key={i} disabled={busy} onClick={() => run(act("game:chooseDie", { index: i }))} className="rounded-xl p-1 hover:bg-white/10">
-              <Die value={d} size="lg" />
-            </button>
-          ))}
-        </div>
-      </div>
-    );
+    return <ChooseDice key={`${room.set}-${room.turnIndex}`} dice={turn.dice} busy={busy} onConfirm={(keep) => run(act("game:chooseDie", { keep }))} />;
   }
 
   if (turn.stage === "caveItem") {
@@ -633,6 +622,38 @@ function ActionPanel({
           ここで止まる(残り0.5は使わない)
         </SecondaryButton>
       )}
+    </div>
+  );
+}
+
+/** 選べる運命: tap the two dice to use (tap again to unpick), then confirm. */
+function ChooseDice({ dice, busy, onConfirm }: { dice: number[]; busy: boolean; onConfirm: (keep: number[]) => void }) {
+  const [keep, setKeep] = useState<number[]>([]);
+  const toggle = (i: number) => setKeep((k) => (k.includes(i) ? k.filter((x) => x !== i) : k.length < 2 ? [...k, i] : [k[1], i]));
+  const total = keep.reduce((s, i) => s + dice[i], 0);
+  return (
+    <div className="flex flex-col items-center gap-2 py-1 text-center">
+      <p className="font-bold text-lamp">選べる運命 — 使うサイコロを2つ選んでください</p>
+      <div className="flex gap-3">
+        {dice.map((d, i) => {
+          const on = keep.includes(i);
+          return (
+            <button
+              key={i}
+              disabled={busy}
+              onClick={() => toggle(i)}
+              className={`rounded-xl p-1 transition ${on ? "-translate-y-1 bg-lamp/25 ring-2 ring-lamp" : "opacity-60 hover:bg-white/10 hover:opacity-100"}`}
+              aria-pressed={on}
+            >
+              <Die value={d} size="lg" />
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-sm text-white/70">{keep.length === 2 ? `合計 ${total} マス` : `あと${2 - keep.length}つ選んでください`}</p>
+      <PrimaryButton disabled={busy || keep.length !== 2} onClick={() => onConfirm(keep)}>
+        この2つで決定
+      </PrimaryButton>
     </div>
   );
 }

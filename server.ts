@@ -226,8 +226,8 @@ app.prepare().then(() => {
       withRoom(code, (room) => roll(room, socket.data.playerId ?? socket.id), cb);
     });
 
-    socket.on("game:chooseDie", ({ code, index }, cb) => {
-      withRoom(code, (room) => chooseDie(room, socket.data.playerId ?? socket.id, index), cb);
+    socket.on("game:chooseDie", ({ code, keep }, cb) => {
+      withRoom(code, (room) => chooseDie(room, socket.data.playerId ?? socket.id, keep ?? []), cb);
     });
 
     socket.on("game:step", ({ code, cell }, cb) => {

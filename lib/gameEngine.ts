@@ -985,15 +985,19 @@ export function applyItem(room: RoomState, playerId: string, index: number, targ
       if (checkFlagWin(r)) return r;
       break;
     case "missile": {
-      // Three strikes on unclaimed ground anywhere (fog included). Each lands on a
-      // random unpainted, paintable cell and claims only the unpainted cells of the
-      // 3×3 around it — nobody's territory is hit. The fog there clears for the
-      // firing team so they see where it landed.
+      // Three strikes on wholly unclaimed ground anywhere (fog included): each
+      // lands where its whole 3×3 has no painted cell (glaciers, rivers and
+      // mountains may be in it) and at least one cell can take paint, so nobody's
+      // territory is ever hit and strikes never overlap. The fog there clears for
+      // the firing team so they see where it landed.
       for (let k = 0; k < 3; k++) {
-        const open = r.cells.flatMap((c, i) => (c.o < 0 && isPaintable(c.t) ? [i] : []));
+        const open = r.cells.flatMap((_, i) => {
+          const area = square(r.size, i, 1);
+          return area.every((c) => r.cells[c].o < 0) && area.some((c) => isPaintable(r.cells[c].t)) ? [i] : [];
+        });
         if (!open.length) break;
         const center = open[rand(open.length)];
-        for (const c of square(r.size, center, 1)) if (r.cells[c].o < 0) paint(r, c, player, false);
+        for (const c of square(r.size, center, 1)) paint(r, c, player, false);
         reveal(r, player.color, center, 1, playerId);
       }
       afterPaint(r, player);

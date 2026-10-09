@@ -27,7 +27,7 @@ export const ITEMS: ItemDef[] = [
 /** Cave-only treasures: worth the turns spent digging for them. */
 export const RARE_ITEMS: ItemDef[] = [
   { id: "megaBomb", name: "大爆弾", icon: "💥", description: "自分を中心に5×5を自分の色にする", target: "none", rare: true },
-  { id: "missile", name: "ミサイル", icon: "🚀", description: "まだ誰の色でもない場所のうちランダムな3か所(霧の中も)に着弾し、それぞれ3×3の無色のマスを自分の色にする(塗られたマス・氷河などはそのまま)", target: "none", rare: true },
+  { id: "missile", name: "ミサイル", icon: "🚀", description: "3×3がまったく塗られていない場所からランダムに3か所(霧の中も)を選んで着弾し、それぞれの3×3を自分の色にする(氷河・川・山はそのまま)", target: "none", rare: true },
   { id: "ancientMap", name: "古代の地図", icon: "🗺️", description: "すべてのフラッグの位置を暴き、好きなマスを中心に11×11の霧を晴らす", target: "cell", rare: true },
   { id: "wideRoller", name: "極太ローラー", icon: "🧹", description: "このターン、通過マスの左右2マスずつ(幅5マス)を塗る", target: "none", rare: true },
   { id: "sanctuary", name: "聖域", icon: "⛩️", description: "自分の色のマスすべてを、自分の手番が2回まわってくるまで塗り替え不可にする", target: "none", rare: true },

@@ -69,6 +69,7 @@ function act(room: RoomState): RoomState {
     }
     return roll(room, player.id);
   }
+  if (turn.stage === "bonus") return roll(room, player.id);
   if (turn.stage === "chooseDie") return chooseDie(room, player.id, Math.floor(Math.random() * turn.dice.length));
   if (turn.stage === "discard") return discardItem(room, player.id, Math.floor(Math.random() * player.items.length));
   if (turn.stage === "caveItem") {

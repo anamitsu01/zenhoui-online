@@ -756,8 +756,30 @@ function startMove(room: RoomState, turn: TurnState, player: Player) {
   room.log.push({ type: "roll", playerId: player.id, dice: turn.dice, steps });
 }
 
+/** ピンゾロ: two 1s grant one bonus roll (only on the first roll of the turn). */
+function isSnakeEyes(dice: number[]): boolean {
+  return dice.length === DICE_COUNT && dice.every((d) => d === 1);
+}
+
+/** Begin moving — unless the dice came up 1 and 1, which earns one more roll first. */
+function startMoveOrBonus(room: RoomState, turn: TurnState, player: Player) {
+  if (isSnakeEyes(turn.dice)) {
+    turn.stage = "bonus";
+    room.log.push({ type: "bonusRoll", playerId: player.id });
+    return;
+  }
+  startMove(room, turn, player);
+}
+
 export function roll(room: RoomState, playerId: string): RoomState {
-  const { r, player, turn } = actorTurn(room, playerId, ["start"]);
+  const { r, player, turn } = actorTurn(room, playerId, ["start", "bonus"]);
+
+  if (turn.stage === "bonus") {
+    // The bonus roll adds to the 1+1; a second ピンゾロ gives no third roll.
+    turn.dice = [...turn.dice, ...rollDice(DICE_COUNT)];
+    startMove(r, turn, player);
+    return r;
+  }
 
   if (player.cave) {
     turn.dice = rollDice(DICE_COUNT);
@@ -785,7 +807,7 @@ export function roll(room: RoomState, playerId: string): RoomState {
     return r;
   }
   turn.dice = rollDice(DICE_COUNT);
-  startMove(r, turn, player);
+  startMoveOrBonus(r, turn, player);
   return r;
 }
 
@@ -794,7 +816,7 @@ export function chooseDie(room: RoomState, playerId: string, index: number): Roo
   // `index` is the die to leave out.
   if (turn.dice[index] === undefined) throw new GameError("使わないサイコロを選んでください");
   turn.dice = turn.dice.filter((_, i) => i !== index);
-  startMove(r, turn, player);
+  startMoveOrBonus(r, turn, player);
   return r;
 }
 

@@ -51,6 +51,8 @@ function startBot(i: number) {
       } else {
         act(() => socket.emit("game:roll", { code }, done));
       }
+    } else if (turn.stage === "bonus") {
+      act(() => socket.emit("game:roll", { code }, done));
     } else if (turn.stage === "chooseDie") {
       act(() => socket.emit("game:chooseDie", { code, index: turn.dice.indexOf(Math.min(...turn.dice)) }, done));
     } else if (turn.stage === "caveItem") {

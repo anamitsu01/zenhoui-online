@@ -63,7 +63,7 @@ export interface Player {
   resting: boolean;
 }
 
-export type TurnStage = "start" | "chooseDie" | "move" | "caveItem" | "discard";
+export type TurnStage = "start" | "chooseDie" | "bonus" | "move" | "caveItem" | "discard";
 
 export interface TurnState {
   playerId: string;
@@ -103,6 +103,8 @@ export type PublicEvent =
   | { type: "caveExit"; playerId: string; extra: number }
   | { type: "bridge"; playerId: string; rest: boolean }
   | { type: "rest"; playerId: string }
+  /** ピンゾロ (1 and 1): the player gets one more roll, added on top. */
+  | { type: "bonusRoll"; playerId: string }
   | { type: "flagFound"; playerId: string }
   | { type: "enclose"; playerId: string; count: number }
   | { type: "score"; set: number; counts: number[]; leader: number; flags: number[]; gained: number[] }

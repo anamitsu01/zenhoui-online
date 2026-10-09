@@ -48,6 +48,9 @@ export function SoundDirector({ room, viewerId }: { room: RoomState; viewerId: s
     const fresh: PublicEvent[] = now.log >= before.log ? room.log.slice(before.log) : room.log;
     for (const e of fresh) {
       switch (e.type) {
+        case "bonusRoll":
+          play("ruinsGood", { volume: e.playerId === viewerId ? 1 : 0.6 });
+          break;
         case "roll":
           if (e.dice.length) play("dice", { volume: e.playerId === viewerId ? 1 : 0.5 });
           break;
@@ -129,6 +132,7 @@ function cutInFor(room: RoomState, e: PublicEvent, key: number, viewerId: string
   const p = "playerId" in e ? room.players.find((pl) => pl.id === e.playerId) : undefined;
   const who = p ? (p.id === viewerId ? "あなた" : p.name) : "";
   const color = p ? colorHex(room.settings.mode, p.color) : "#f0b43c";
+  if (e.type === "bonusRoll") return { key, title: "ピンゾロ!", sub: `${who}がもう一度サイコロを振る`, color, icon: "🎲" };
   if (e.type === "flagReach") {
     const team = room.settings.mode === "teams" ? (e.color === 0 ? "青チーム" : "赤チーム") : room.players.find((pl) => pl.color === e.color)?.name ?? "";
     return { key, title: "リーチ!", sub: `${team}がフラッグ${e.held}本 — あと1本で勝利`, color: colorHex(room.settings.mode, e.color), icon: "🚩" };

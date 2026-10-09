@@ -264,10 +264,11 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
           </span>
         </div>
         <div className="relative" ref={boardRef}>
-        {myTurn && turn?.stage === "start" && !activeTargeting && !bridgeAsk && (
+        {myTurn && (turn?.stage === "start" || turn?.stage === "bonus") && !activeTargeting && !bridgeAsk && (
           <RollButton
             anchor={boardRef}
             busy={busy}
+            bonus={turn.stage === "bonus"}
             cave={me.cave ? { total: me.cave.total, need: room.settings.caveThreshold } : null}
             onRoll={() => run(act("game:roll", {}))}
           />
@@ -442,6 +443,7 @@ function ActionPanel({
         <p className="text-sm text-white/50">
           {turn.stage === "start" && (actor?.cave ? "洞窟の中…" : "サイコロを振るのを待っています")}
           {turn.stage === "chooseDie" && "使うサイコロを選んでいます"}
+          {turn.stage === "bonus" && "ピンゾロ! もう一度サイコロを振ります"}
           {turn.stage === "move" && `移動中(残り ${turn.remaining})`}
           {turn.stage === "caveItem" && "洞窟でアイテムを選んでいます"}
           {turn.stage === "discard" && "持ち物がいっぱいなので、アイテムを1つ捨てています"}
@@ -524,6 +526,15 @@ function ActionPanel({
             ))}
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (turn.stage === "bonus") {
+    return (
+      <div className="flex flex-col items-center gap-1 py-1 text-center">
+        <p className="font-bold text-lamp">ピンゾロ(1と1)! もう一度サイコロを振れます</p>
+        <p className="text-xs text-white/50">2回目の出目も合計に加えて進めます(3回目はありません)。盤面中央のサイコロを振ってください</p>
       </div>
     );
   }
@@ -893,6 +904,8 @@ function eventText(room: RoomState, e: PublicEvent): string {
       return `${name(e.playerId)}が洞窟から脱出!(残り${e.extra}マス)`;
     case "bridge":
       return `${name(e.playerId)}が🌉橋を架けた${e.rest ? "(次のターンは1回休み)" : ""}`;
+    case "bonusRoll":
+      return `${name(e.playerId)}: ⚀⚀ ピンゾロ! もう一度振る`;
     case "rest":
       return `${name(e.playerId)}は1回休み💤`;
     case "flagFound":
@@ -1064,11 +1077,14 @@ function CenterLayer({ anchor, children }: { anchor: RefObject<HTMLDivElement | 
 function RollButton({
   anchor,
   busy,
+  bonus = false,
   cave,
   onRoll,
 }: {
   anchor: RefObject<HTMLDivElement | null>;
   busy: boolean;
+  /** ピンゾロ bonus roll. */
+  bonus?: boolean;
   cave: { total: number; need: number } | null;
   onRoll: () => void;
 }) {
@@ -1089,8 +1105,18 @@ function RollButton({
         onClick={onRoll}
         className="zh-pop pointer-events-auto flex flex-col items-center gap-1 rounded-3xl border-2 border-lamp bg-panel/90 px-8 py-5 shadow-[0_0_40px_rgba(240,180,60,0.45)] backdrop-blur transition-transform hover:scale-105 disabled:opacity-50"
       >
-        <span className="zh-wobble text-6xl">🎲</span>
-        <span className="text-lg font-black text-lamp">{cave ? "洞窟でサイコロを振る" : "サイコロを振る"}</span>
+        {bonus ? (
+          <>
+            <span className="text-sm font-black text-red-400">⚀⚀ ピンゾロ!</span>
+            <span className="flex gap-2">
+              <Die value={1} />
+              <Die value={1} />
+            </span>
+          </>
+        ) : (
+          <span className="zh-wobble text-6xl">🎲</span>
+        )}
+        <span className="text-lg font-black text-lamp">{bonus ? "もう一度振る(合計に加算)" : cave ? "洞窟でサイコロを振る" : "サイコロを振る"}</span>
         {cave && (
           <span className="text-xs text-white/60">
             合計 {cave.total} / {cave.need} で脱出
@@ -1133,7 +1159,7 @@ function DiceResult({ room, viewerId, anchor }: { room: RoomState; viewerId: str
           ))}
         </span>
         {e.type === "roll" ? (
-          <p className="zh-reveal text-2xl font-black text-lamp">{e.steps}マス進める!</p>
+          <p className="zh-reveal text-2xl font-black text-lamp">{e.dice.length > 2 ? `ボーナス込みで${e.steps}マス進める!` : `${e.steps}マス進める!`}</p>
         ) : (
           <div className="zh-reveal w-56 text-center">
             <p className="text-lg font-black">

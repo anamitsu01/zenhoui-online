@@ -604,17 +604,20 @@ function occupiedByOther(room: RoomState, cell: number, playerId: string): boole
 }
 
 /** Can a piece at `pos` with `remaining` movement still end exactly on a free cell? */
+/**
+ * Can a piece at `pos` with `remaining` movement end its move on a free cell?
+ * A move may end where the movement is used up, where only half a point is
+ * left (the player may choose to stop), or where nothing more can be afforded
+ * (the move ends by itself) — as long as no other piece is standing there.
+ */
 function canFinish(room: RoomState, player: Player, turn: TurnState, pos: number, remaining: number, memo: Map<number, boolean>): boolean {
-  if (remaining === 0) return !occupiedByOther(room, pos, player.id);
   const key = pos * 256 + remaining * 2; // remaining moves in halves
   const known = memo.get(key);
   if (known !== undefined) return known;
   memo.set(key, false);
-  const result = neighbors4(room.size, pos).some((nb) => {
-    if (!isPassable(room.cells[nb].t)) return false;
-    const cost = stepCost(room, nb, turn);
-    return cost <= remaining && canFinish(room, player, turn, nb, remaining - cost, memo);
-  });
+  const affordable = neighbors4(room.size, pos).filter((nb) => isPassable(room.cells[nb].t) && stepCost(room, nb, turn) <= remaining);
+  const canStopHere = !occupiedByOther(room, pos, player.id) && (remaining <= 0.5 || affordable.length === 0);
+  const result = canStopHere || affordable.some((nb) => canFinish(room, player, turn, nb, remaining - stepCost(room, nb, turn), memo));
   memo.set(key, result);
   return result;
 }

@@ -794,21 +794,15 @@ export function roll(room: RoomState, playerId: string): RoomState {
   }
 
   if (player.cave) {
-    turn.dice = rollDice(diceOf(r, player));
-    player.cave.total += sum(turn.dice);
-    r.log.push({ type: "caveRoll", playerId, roll: sum(turn.dice), total: player.cave.total, dice: turn.dice });
-    if (player.cave.total < r.settings.caveThreshold) {
-      endTurn(r);
+    // Effects waiting for this turn count in the cave too: 選べる運命 rolls an
+    // extra die to choose from, 追い風/足かせ (and 妨害/暴風) shift the total.
+    if (turn.mods.doubleDice) {
+      turn.dice = rollDice(diceOf(r, player) + 1);
+      turn.stage = "chooseDie";
       return r;
     }
-    const extra = player.cave.total - r.settings.caveThreshold;
-    player.cave = null;
-    r.log.push({ type: "caveExit", playerId, extra });
-    turn.stage = "caveItem";
-    turn.caveChoices = rareChoices();
-    turn.steps = extra;
-    turn.remaining = extra;
-    turn.path = [player.pos];
+    turn.dice = rollDice(diceOf(r, player));
+    resolveCaveRoll(r, turn, player);
     return r;
   }
 
@@ -832,8 +826,31 @@ export function chooseDie(room: RoomState, playerId: string, keep: number[]): Ro
     throw new GameError(`使うサイコロを${need}個選んでください`);
   }
   turn.dice = picks.sort((a, b) => a - b).map((i) => turn.dice[i]);
-  startMoveOrBonus(r, turn, player);
+  if (player.cave) resolveCaveRoll(r, turn, player);
+  else startMoveOrBonus(r, turn, player);
   return r;
+}
+
+/** Add this turn's dice (plus any move bonus/penalty) to the cave total; leave the cave once it's enough. */
+function resolveCaveRoll(r: RoomState, turn: TurnState, player: Player) {
+  const cave = player.cave!;
+  const delta = turn.mods.moveDelta;
+  const gained = Math.max(0, sum(turn.dice) + delta);
+  turn.mods.moveDelta = 0; // spent here, not again on the steps after leaving
+  cave.total += gained;
+  r.log.push({ type: "caveRoll", playerId: player.id, roll: gained, total: cave.total, dice: turn.dice, delta });
+  if (cave.total < r.settings.caveThreshold) {
+    endTurn(r);
+    return;
+  }
+  const extra = cave.total - r.settings.caveThreshold;
+  player.cave = null;
+  r.log.push({ type: "caveExit", playerId: player.id, extra });
+  turn.stage = "caveItem";
+  turn.caveChoices = rareChoices();
+  turn.steps = extra;
+  turn.remaining = extra;
+  turn.path = [player.pos];
 }
 
 /** Pick one of the offered items when leaving a cave (index -1 = take nothing). */

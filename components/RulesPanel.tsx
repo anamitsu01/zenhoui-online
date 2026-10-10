@@ -57,7 +57,7 @@ export function RulesContent({ className = "" }: { className?: string }) {
         </ul>
       </details>
       <details className="rounded-lg bg-white/[0.03] p-3">
-        <summary className="cursor-pointer font-semibold text-ink">遺跡の効果(サイコロで決定)</summary>
+        <summary className="cursor-pointer font-semibold text-ink">遺跡の効果(サイコロで決定。洞窟の中にいても、選べる運命と移動力の増減は脱出のサイコロに反映)</summary>
         <ul className="mt-2 space-y-1">
           {RUINS_EFFECTS.map((r) => (
             <li key={r.roll}>

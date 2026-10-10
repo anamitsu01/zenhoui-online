@@ -99,7 +99,8 @@ export type PublicEvent =
   | { type: "discard"; playerId: string; item: ItemKind | null; hidden?: boolean }
   | { type: "ruins"; playerId: string; roll: number }
   | { type: "caveEnter"; playerId: string }
-  | { type: "caveRoll"; playerId: string; roll: number; total: number; dice: number[] }
+  /** `roll` is what was added to the cave total: the dice plus `delta` (追い風/足かせ etc.), never below 0. */
+  | { type: "caveRoll"; playerId: string; roll: number; total: number; dice: number[]; delta: number }
   | { type: "caveExit"; playerId: string; extra: number }
   | { type: "bridge"; playerId: string; rest: boolean }
   | { type: "rest"; playerId: string }

@@ -541,7 +541,7 @@ function ActionPanel({
   }
 
   if (turn.stage === "chooseDie") {
-    return <ChooseDice key={`${room.set}-${room.turnIndex}`} dice={turn.dice} busy={busy} onConfirm={(keep) => run(act("game:chooseDie", { keep }))} />;
+    return <ChooseDice key={`${room.set}-${room.turnIndex}`} dice={turn.dice} busy={busy} cave={!!me.cave} onConfirm={(keep) => run(act("game:chooseDie", { keep }))} />;
   }
 
   if (turn.stage === "caveItem") {
@@ -628,7 +628,7 @@ function ActionPanel({
 }
 
 /** 選べる運命: tap the two dice to use (tap again to unpick), then confirm. */
-function ChooseDice({ dice, busy, onConfirm }: { dice: number[]; busy: boolean; onConfirm: (keep: number[]) => void }) {
+function ChooseDice({ dice, busy, cave = false, onConfirm }: { dice: number[]; busy: boolean; cave?: boolean; onConfirm: (keep: number[]) => void }) {
   const need = dice.length - 1; // one extra die was rolled
   const [keep, setKeep] = useState<number[]>([]);
   const toggle = (i: number) => setKeep((k) => (k.includes(i) ? k.filter((x) => x !== i) : k.length < need ? [...k, i] : [...k.slice(1), i]));
@@ -652,7 +652,7 @@ function ChooseDice({ dice, busy, onConfirm }: { dice: number[]; busy: boolean; 
           );
         })}
       </div>
-      <p className="text-sm text-white/70">{keep.length === need ? `合計 ${total} マス` : `あと${need - keep.length}つ選んでください`}</p>
+      <p className="text-sm text-white/70">{keep.length === need ? (cave ? `洞窟の合計に +${total}` : `合計 ${total} マス`) : `あと${need - keep.length}つ選んでください`}</p>
       <PrimaryButton disabled={busy || keep.length !== need} onClick={() => onConfirm(keep)}>
         この{need}つで決定
       </PrimaryButton>
@@ -927,7 +927,7 @@ function eventText(room: RoomState, e: PublicEvent): string {
     case "caveEnter":
       return `${name(e.playerId)}が洞窟に入った`;
     case "caveRoll":
-      return `${name(e.playerId)}(洞窟): 🎲${e.roll} 合計${e.total}`;
+      return `${name(e.playerId)}(洞窟): 🎲${e.dice.join("・")}${e.delta ? `(効果${e.delta > 0 ? "+" : ""}${e.delta})` : ""} → +${e.roll} 合計${e.total}`;
     case "caveExit":
       return `${name(e.playerId)}が洞窟から脱出!(残り${e.extra}マス)`;
     case "bridge":
@@ -1195,7 +1195,9 @@ function DiceResult({ room, viewerId, anchor }: { room: RoomState; viewerId: str
         ) : (
           <div className="zh-reveal w-56 text-center">
             <p className="text-lg font-black">
-              <CaveIcon /> +{e.roll} → 合計 <span className="text-lamp">{e.total}</span> / {need}
+              <CaveIcon /> +{e.roll}
+              {e.delta !== 0 && <span className="text-sm text-lamp-light">(効果{e.delta > 0 ? "+" : ""}{e.delta})</span>} → 合計{" "}
+              <span className="text-lamp">{e.total}</span> / {need}
             </p>
             <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
               <div className="h-full rounded-full bg-lamp" style={{ width: `${Math.min(100, (e.total / need) * 100)}%` }} />

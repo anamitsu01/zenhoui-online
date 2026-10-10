@@ -57,6 +57,6 @@ export const TERRAIN_INFO: { icon: string; name: string; description: string }[]
   { icon: "🧊", name: "氷河", description: "通れるが、ずっと白のまま塗れない" },
   { icon: "🏛️", name: "遺跡", description: "踏むとサイコロを振り、次のターンに効果(1回で崩れる)" },
   { icon: "cave", name: "洞窟", description: "入ると次のターンから毎ターン振った目を合計し、規定値以上で洞窟限定の秘宝2つから1つを選んで脱出。超えた分だけ進める" },
-  { icon: "🎁", name: "宝箱", description: "踏むとアイテムを1個獲得" },
+  { icon: "🎁", name: "宝箱", description: "踏むとアイテムを1個獲得。取られると、別の場所に新しい宝箱が湧く" },
   { icon: "🚩", name: "フラッグ", description: "自分の色にしていれば支配。見つけると全員に位置が公開される" },
 ];

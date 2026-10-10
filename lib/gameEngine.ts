@@ -915,6 +915,7 @@ export function step(room: RoomState, playerId: string, to: number): RoomState {
     player.itemCount = player.items.length;
     cell.f = null;
     r.log.push({ type: "chest", playerId, color: player.color, item: got });
+    spawnChest(r, to);
   } else if (cell.f === "ruins") {
     const d = die();
     applyRuins(player, d);
@@ -957,6 +958,18 @@ export function discardItem(room: RoomState, playerId: string, index: number): R
   r.log.push({ type: "discard", playerId, item });
   continueMove(r, player, turn);
   return r;
+}
+
+/**
+ * A new chest appears somewhere else when one is taken, so the board never
+ * runs out: on open plain ground with nothing on it, preferably well away
+ * from where the last one was (so it can't just be grabbed again).
+ */
+function spawnChest(room: RoomState, takenAt: number) {
+  const free = room.cells.flatMap((c, i) => (c.t === "plain" && c.f === null && i !== takenAt && !room.players.some((p) => p.pos === i) ? [i] : []));
+  const far = free.filter((i) => chebyshev(room.size, i, takenAt) >= 5);
+  const pool = far.length ? far : free;
+  if (pool.length) room.cells[pool[rand(pool.length)]].f = "chest";
 }
 
 function applyRuins(player: Player, roll: number) {

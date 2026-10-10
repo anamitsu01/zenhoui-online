@@ -332,7 +332,16 @@ function basePositions(size: number, colorCount: number): number[] {
   const lo = m;
   const hi = size - 1 - m;
   const corners = [idx(size, lo, lo), idx(size, hi, hi), idx(size, hi, lo), idx(size, lo, hi)];
-  return corners.slice(0, colorCount);
+  if (colorCount <= corners.length) return corners.slice(0, colorCount);
+  // More players than corners: space them evenly on a ring around the middle
+  // (randomly rotated), so nobody is stuck in the center with everyone else around.
+  const mid = (size - 1) / 2;
+  const radius = size * 0.34;
+  const turn = Math.random() * Math.PI * 2;
+  return Array.from({ length: colorCount }, (_, i) => {
+    const a = turn + (i * Math.PI * 2) / colorCount;
+    return idx(size, Math.round(mid + radius * Math.cos(a)), Math.round(mid + radius * Math.sin(a)));
+  });
 }
 
 /**

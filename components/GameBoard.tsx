@@ -361,7 +361,7 @@ function ScoreStrip({ room }: { room: RoomState }) {
           {settings.flagWin > 0 && ` ・ フラッグ${settings.flagWin}本(全${room.flagTotal}本)`}
         </span>
       </div>
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${room.colorCount}, minmax(0, 1fr))` }}>
+      <div className="grid gap-2" style={{ gridTemplateColumns: room.colorCount <= 4 ? `repeat(${room.colorCount}, minmax(0, 1fr))` : "repeat(auto-fit, minmax(6.5rem, 1fr))" }}>
         {room.scores.map((score, c) => {
           const hex = colorHex(settings.mode, c);
           const count = room.counts[c] ?? 0;

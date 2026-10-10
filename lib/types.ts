@@ -182,12 +182,12 @@ export const DICE_COUNT = 2;
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
-export const MAX_FFA_PLAYERS = 4;
+export const MAX_FFA_PLAYERS = 5;
 export const MAX_ITEMS = 3;
 export const VISION = 2;
 
 export const COLOR_NAMES_TEAMS = ["青", "赤"];
-export const COLOR_NAMES_FFA = ["赤", "青", "緑", "紫"];
+export const COLOR_NAMES_FFA = ["赤", "青", "緑", "紫", "桃"];
 
 export function colorName(mode: GameMode, color: number): string {
   return (mode === "teams" ? COLOR_NAMES_TEAMS : COLOR_NAMES_FFA)[color] ?? `色${color + 1}`;

@@ -96,7 +96,7 @@ for (let g = 0; g < games; g++) {
   const n = 2 + Math.floor(Math.random() * 7);
   let room = createRoom("p0", "P0");
   for (let i = 1; i < n; i++) room = addPlayer(room, `p${i}`, `P${i}`);
-  const ffa = n <= 4 && Math.random() < 0.5;
+  const ffa = n <= 5 && Math.random() < 0.5;
   room = updateSettings(room, "p0", { mode: ffa ? "ffa" : "teams", targetScore: 10 });
   room = startGame(room, "p0");
   let actions = 0;

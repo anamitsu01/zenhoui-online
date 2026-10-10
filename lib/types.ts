@@ -180,6 +180,20 @@ export const TEST_ROOM_BOTS = 3;
 /** Dice rolled each turn; movement is their total. */
 export const DICE_COUNT = 2;
 
+/**
+ * Team-size handicap: when the teams differ by one player, everyone on the
+ * smaller team rolls more dice. Keyed "smaller:larger".
+ */
+export const HANDICAP_DICE: Record<string, number> = { "1:2": 4, "2:3": 3, "3:4": 4 };
+
+/** How many dice a player of `color` rolls. */
+export function diceCountFor(mode: GameMode, players: { color: number }[], color: number): number {
+  if (mode !== "teams") return DICE_COUNT;
+  const mine = players.filter((p) => p.color === color).length;
+  const theirs = players.length - mine;
+  return (mine < theirs && HANDICAP_DICE[`${mine}:${theirs}`]) || DICE_COUNT;
+}
+
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
 export const MAX_FFA_PLAYERS = 5;

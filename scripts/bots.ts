@@ -54,7 +54,7 @@ function startBot(i: number) {
     } else if (turn.stage === "bonus") {
       act(() => socket.emit("game:roll", { code }, done));
     } else if (turn.stage === "chooseDie") {
-      act(() => socket.emit("game:chooseDie", { code, keep: turn.dice.map((d, i) => [d, i]).sort((a, b) => b[0] - a[0]).slice(0, 2).map(([, i]) => i) }, done));
+      act(() => socket.emit("game:chooseDie", { code, keep: turn.dice.map((d, i) => [d, i]).sort((a, b) => b[0] - a[0]).slice(0, turn.dice.length - 1).map(([, i]) => i) }, done));
     } else if (turn.stage === "caveItem") {
       act(() => socket.emit("game:caveItem", { code, index: 0 }, done));
     } else if (turn.stage === "discard") {

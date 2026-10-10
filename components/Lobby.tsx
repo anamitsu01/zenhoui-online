@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { colorHex, withAlpha } from "@/lib/colors";
 import type { Player, RoomSettings, RoomState } from "@/lib/types";
-import { autoBoardSize, BOARD_SIZE_CHOICES, COLOR_NAMES_TEAMS, MAX_FFA_PLAYERS, MAX_PLAYERS, MIN_PLAYERS } from "@/lib/types";
+import { autoBoardSize, BOARD_SIZE_CHOICES, COLOR_NAMES_TEAMS, DICE_COUNT, diceCountFor, MAX_FFA_PLAYERS, MAX_PLAYERS, MIN_PLAYERS } from "@/lib/types";
 import RulesPanel from "./RulesPanel";
 
 export default function Lobby({
@@ -202,6 +202,15 @@ export default function Lobby({
         </label>
       </div>
 
+      {teams &&
+        [0, 1].map((c) => {
+          const n = diceCountFor("teams", room.players, c);
+          return n > DICE_COUNT ? (
+            <p key={c} className="mb-4 rounded-lg border border-lamp/40 bg-lamp/10 px-4 py-2 text-sm text-lamp-light">
+              🎲 人数差ハンデ: {COLOR_NAMES_TEAMS[c]}チーム(人数が少ない側)は、サイコロを{n}個振れます
+            </p>
+          ) : null;
+        })}
       {startBlocker && <p className="mb-4 text-sm text-white/50">{startBlocker}</p>}
 
       {isHost ? (

@@ -6,7 +6,7 @@ import { colorHex, withAlpha } from "@/lib/colors";
 import { legalSteps, neighbors4 } from "@/lib/gameEngine";
 import type { ClientToServerEvents } from "@/lib/socketEvents";
 import type { ItemKind, Player, PublicEvent, RoomState, TurnState } from "@/lib/types";
-import { colorName, isPassable, MAX_ITEMS } from "@/lib/types";
+import { colorName, DICE_COUNT, diceCountFor, isPassable, MAX_ITEMS } from "@/lib/types";
 import { play } from "@/lib/sound";
 import { EventCutIns, MuteToggle, shakeCount, SoundDirector } from "./BoardEffects";
 import CaveIcon from "./CaveIcon";
@@ -269,6 +269,7 @@ export default function GameBoard({ room, viewerId, act }: { room: RoomState; vi
             anchor={boardRef}
             busy={busy}
             bonus={turn.stage === "bonus"}
+            diceCount={diceCountFor(room.settings.mode, room.players, me.color)}
             cave={me.cave ? { total: me.cave.total, need: room.settings.caveThreshold } : null}
             onRoll={() => run(act("game:roll", {}))}
           />
@@ -628,13 +629,14 @@ function ActionPanel({
 
 /** 選べる運命: tap the two dice to use (tap again to unpick), then confirm. */
 function ChooseDice({ dice, busy, onConfirm }: { dice: number[]; busy: boolean; onConfirm: (keep: number[]) => void }) {
+  const need = dice.length - 1; // one extra die was rolled
   const [keep, setKeep] = useState<number[]>([]);
-  const toggle = (i: number) => setKeep((k) => (k.includes(i) ? k.filter((x) => x !== i) : k.length < 2 ? [...k, i] : [k[1], i]));
+  const toggle = (i: number) => setKeep((k) => (k.includes(i) ? k.filter((x) => x !== i) : k.length < need ? [...k, i] : [...k.slice(1), i]));
   const total = keep.reduce((s, i) => s + dice[i], 0);
   return (
     <div className="flex flex-col items-center gap-2 py-1 text-center">
-      <p className="font-bold text-lamp">選べる運命 — 使うサイコロを2つ選んでください</p>
-      <div className="flex gap-3">
+      <p className="font-bold text-lamp">選べる運命 — 使うサイコロを{need}つ選んでください</p>
+      <div className="flex flex-wrap justify-center gap-3">
         {dice.map((d, i) => {
           const on = keep.includes(i);
           return (
@@ -650,9 +652,9 @@ function ChooseDice({ dice, busy, onConfirm }: { dice: number[]; busy: boolean; 
           );
         })}
       </div>
-      <p className="text-sm text-white/70">{keep.length === 2 ? `合計 ${total} マス` : `あと${2 - keep.length}つ選んでください`}</p>
-      <PrimaryButton disabled={busy || keep.length !== 2} onClick={() => onConfirm(keep)}>
-        この2つで決定
+      <p className="text-sm text-white/70">{keep.length === need ? `合計 ${total} マス` : `あと${need - keep.length}つ選んでください`}</p>
+      <PrimaryButton disabled={busy || keep.length !== need} onClick={() => onConfirm(keep)}>
+        この{need}つで決定
       </PrimaryButton>
     </div>
   );
@@ -875,6 +877,11 @@ function PlayerList({ room, me, actorId }: { room: RoomState; me: Player; actorI
               <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-white/50">
                 {p.cave && <span><CaveIcon /> 洞窟中({p.cave.total}/{room.settings.caveThreshold})</span>}
                 {p.resting && <span className="text-sky-300">💤 次は1回休み</span>}
+                {diceCountFor(room.settings.mode, room.players, p.color) > DICE_COUNT && (
+                  <span className="text-lamp-light" title="人数差ハンデ">
+                    🎲×{diceCountFor(room.settings.mode, room.players, p.color)}
+                  </span>
+                )}
                 {ally
                   ? p.items.map((it, k) => (
                       <span key={k} title={`${ITEM_BY_ID[it].name}: ${ITEM_BY_ID[it].description}`}>
@@ -1099,6 +1106,7 @@ function RollButton({
   anchor,
   busy,
   bonus = false,
+  diceCount,
   cave,
   onRoll,
 }: {
@@ -1106,6 +1114,7 @@ function RollButton({
   busy: boolean;
   /** ピンゾロ bonus roll. */
   bonus?: boolean;
+  diceCount: number;
   cave: { total: number; need: number } | null;
   onRoll: () => void;
 }) {
@@ -1130,8 +1139,9 @@ function RollButton({
           <>
             <span className="text-sm font-black text-red-400">⚀⚀ ピンゾロ!</span>
             <span className="flex gap-2">
-              <Die value={1} />
-              <Die value={1} />
+              {Array.from({ length: diceCount }, (_, k) => (
+                <Die key={k} value={1} />
+              ))}
             </span>
           </>
         ) : (
@@ -1143,6 +1153,7 @@ function RollButton({
             合計 {cave.total} / {cave.need} で脱出
           </span>
         )}
+        {diceCount > DICE_COUNT && <span className="text-xs font-bold text-lamp-light">人数差ハンデ: サイコロ{diceCount}個</span>}
         <span className="text-[10px] text-white/35">タップ(スペースキーでも可)</span>
       </button>
     </CenterLayer>
@@ -1174,13 +1185,13 @@ function DiceResult({ room, viewerId, anchor }: { room: RoomState; viewerId: str
   return (
     <CenterLayer anchor={anchor}>
       <div key={index} className="zh-dice-result flex flex-col items-center gap-2 rounded-3xl border-2 border-lamp/70 bg-panel/90 px-8 py-5 shadow-2xl backdrop-blur">
-        <span className="flex gap-3">
+        <span className="flex max-w-[80vw] flex-wrap justify-center gap-3">
           {e.dice.map((d, i) => (
-            <Die key={i} value={d} size="xl" />
+            <Die key={i} value={d} size={e.dice.length <= 2 ? "xl" : e.dice.length <= 4 ? "lg" : "md"} />
           ))}
         </span>
         {e.type === "roll" ? (
-          <p className="zh-reveal text-2xl font-black text-lamp">{e.dice.length > 2 ? `ボーナス込みで${e.steps}マス進める!` : `${e.steps}マス進める!`}</p>
+          <p className="zh-reveal text-2xl font-black text-lamp">{e.dice.length > diceCountFor(room.settings.mode, room.players, room.players.find((p) => p.id === e.playerId)?.color ?? -1) ? `ボーナス込みで${e.steps}マス進める!` : `${e.steps}マス進める!`}</p>
         ) : (
           <div className="zh-reveal w-56 text-center">
             <p className="text-lg font-black">

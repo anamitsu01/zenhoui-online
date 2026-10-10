@@ -3,7 +3,7 @@ import { generateTerrain } from "./mapGen";
 import {
   autoBoardSize,
   Cell,
-  DICE_COUNT,
+  diceCountFor,
   emptyPending,
   Feature,
   isPaintable,
@@ -768,14 +768,14 @@ function startMove(room: RoomState, turn: TurnState, player: Player) {
   room.log.push({ type: "roll", playerId: player.id, dice: turn.dice, steps });
 }
 
-/** ピンゾロ: two 1s grant one bonus roll (only on the first roll of the turn). */
-function isSnakeEyes(dice: number[]): boolean {
-  return dice.length === DICE_COUNT && dice.every((d) => d === 1);
+/** Dice this player rolls (more for the smaller team when sizes differ by one). */
+function diceOf(room: RoomState, player: Player): number {
+  return diceCountFor(room.settings.mode, room.players, player.color);
 }
 
-/** Begin moving — unless the dice came up 1 and 1, which earns one more roll first. */
+/** Begin moving — unless every die came up 1 (ピンゾロ), which earns one more roll first. */
 function startMoveOrBonus(room: RoomState, turn: TurnState, player: Player) {
-  if (isSnakeEyes(turn.dice)) {
+  if (turn.dice.length === diceOf(room, player) && turn.dice.every((d) => d === 1)) {
     turn.stage = "bonus";
     room.log.push({ type: "bonusRoll", playerId: player.id });
     return;
@@ -787,14 +787,14 @@ export function roll(room: RoomState, playerId: string): RoomState {
   const { r, player, turn } = actorTurn(room, playerId, ["start", "bonus"]);
 
   if (turn.stage === "bonus") {
-    // The bonus roll adds to the 1+1; a second ピンゾロ gives no third roll.
-    turn.dice = [...turn.dice, ...rollDice(DICE_COUNT)];
+    // The bonus roll adds to the all-1s roll; a second ピンゾロ gives no third roll.
+    turn.dice = [...turn.dice, ...rollDice(diceOf(r, player))];
     startMove(r, turn, player);
     return r;
   }
 
   if (player.cave) {
-    turn.dice = rollDice(DICE_COUNT);
+    turn.dice = rollDice(diceOf(r, player));
     player.cave.total += sum(turn.dice);
     r.log.push({ type: "caveRoll", playerId, roll: sum(turn.dice), total: player.cave.total, dice: turn.dice });
     if (player.cave.total < r.settings.caveThreshold) {
@@ -814,11 +814,11 @@ export function roll(room: RoomState, playerId: string): RoomState {
 
   if (turn.mods.doubleDice) {
     // Ruins "選べる運命": roll one extra die, then drop the one you don't want.
-    turn.dice = rollDice(DICE_COUNT + 1);
+    turn.dice = rollDice(diceOf(r, player) + 1);
     turn.stage = "chooseDie";
     return r;
   }
-  turn.dice = rollDice(DICE_COUNT);
+  turn.dice = rollDice(diceOf(r, player));
   startMoveOrBonus(r, turn, player);
   return r;
 }
@@ -827,8 +827,9 @@ export function roll(room: RoomState, playerId: string): RoomState {
 export function chooseDie(room: RoomState, playerId: string, keep: number[]): RoomState {
   const { r, player, turn } = actorTurn(room, playerId, ["chooseDie"]);
   const picks = Array.isArray(keep) ? [...new Set(keep)] : [];
-  if (picks.length !== DICE_COUNT || picks.some((i) => !Number.isInteger(i) || turn.dice[i] === undefined)) {
-    throw new GameError(`使うサイコロを${DICE_COUNT}個選んでください`);
+  const need = diceOf(r, player);
+  if (picks.length !== need || picks.some((i) => !Number.isInteger(i) || turn.dice[i] === undefined)) {
+    throw new GameError(`使うサイコロを${need}個選んでください`);
   }
   turn.dice = picks.sort((a, b) => a - b).map((i) => turn.dice[i]);
   startMoveOrBonus(r, turn, player);

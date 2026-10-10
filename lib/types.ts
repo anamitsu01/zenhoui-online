@@ -184,7 +184,7 @@ export const DICE_COUNT = 2;
  * Team-size handicap: when the teams differ by one player, everyone on the
  * smaller team rolls more dice. Keyed "smaller:larger".
  */
-export const HANDICAP_DICE: Record<string, number> = { "1:2": 4, "2:3": 3, "3:4": 4 };
+export const HANDICAP_DICE: Record<string, number> = { "1:2": 4, "2:3": 3, "3:4": 3 };
 
 /** How many dice a player of `color` rolls. */
 export function diceCountFor(mode: GameMode, players: { color: number }[], color: number): number {

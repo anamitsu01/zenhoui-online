@@ -141,7 +141,7 @@ export function createRoom(hostId: string, hostName: string, isTest = false): Ro
     isTest,
     phase: "lobby",
     players: [newPlayer(hostId, hostName, 0, true)],
-    settings: { mode: "teams", scoring: "lead", targetScore: SCORING.lead.defaultTarget, conquestPct: 75, caveThreshold: 20, boardSize: 0, flagWin: 5 },
+    settings: { mode: "teams", scoring: "lead", targetScore: SCORING.lead.defaultTarget, conquestPct: 75, caveThreshold: 16, boardSize: 0, flagWin: 5 },
     colorCount: 2,
     size: 0,
     cells: [],

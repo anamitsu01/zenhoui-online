@@ -115,8 +115,21 @@ export type PublicEvent =
 
 export type WinReason = "score" | "conquest" | "flags";
 
+/**
+ * How sets are scored:
+ * - "lead": the color with the most cells gets 1 point (first to 15 by default)
+ * - "area": every color gets as many points as it has cells (first to 1000 by default)
+ */
+export type ScoringMode = "lead" | "area";
+
+export const SCORING = {
+  lead: { defaultTarget: 15, min: 3, max: 100, step: 1 },
+  area: { defaultTarget: 1000, min: 100, max: 9900, step: 100 },
+} as const;
+
 export interface RoomSettings {
   mode: GameMode;
+  scoring: ScoringMode;
   targetScore: number;
   /** Percent of paintable cells one color must own for an instant win. */
   conquestPct: number;

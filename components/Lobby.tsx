@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { colorHex, withAlpha } from "@/lib/colors";
 import type { Player, RoomSettings, RoomState } from "@/lib/types";
-import { autoBoardSize, BOARD_SIZE_CHOICES, COLOR_NAMES_TEAMS, DICE_COUNT, diceCountFor, MAX_FFA_PLAYERS, MAX_PLAYERS, MIN_PLAYERS } from "@/lib/types";
+import { autoBoardSize, BOARD_SIZE_CHOICES, COLOR_NAMES_TEAMS, DICE_COUNT, diceCountFor, SCORING, MAX_FFA_PLAYERS, MAX_PLAYERS, MIN_PLAYERS } from "@/lib/types";
 import RulesPanel from "./RulesPanel";
 
 export default function Lobby({
@@ -179,8 +179,41 @@ export default function Lobby({
         </ul>
       )}
 
+      <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left text-sm">
+        <p className="mb-2 text-white/50">得点方式</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(
+            [
+              ["lead", "優勢点", `各セット、マスが一番多い陣営に1点。${SCORING.lead.defaultTarget}点先取`],
+              ["area", "陣地点", `各セット、全員に塗っているマス数ぶんの点。${SCORING.area.defaultTarget}点先取`],
+            ] as const
+          ).map(([id, name, desc]) => (
+            <button
+              key={id}
+              disabled={!isHost}
+              onClick={() => change({ scoring: id })}
+              className={`rounded-lg border px-3 py-2 text-left ${
+                settings.scoring === id ? "border-lamp bg-lamp/15" : "border-white/10 enabled:hover:bg-white/10"
+              }`}
+              aria-pressed={settings.scoring === id}
+            >
+              <span className={`block font-bold ${settings.scoring === id ? "text-lamp" : ""}`}>{name}</span>
+              <span className="block text-xs text-white/50">{desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="mb-6 grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left text-sm sm:grid-cols-4">
-        <NumberSetting label="目標点" value={settings.targetScore} disabled={!isHost} min={3} max={100} onChange={(v) => change({ targetScore: v })} />
+        <NumberSetting
+          label="目標点"
+          value={settings.targetScore}
+          disabled={!isHost}
+          min={SCORING[settings.scoring].min}
+          max={SCORING[settings.scoring].max}
+          step={SCORING[settings.scoring].step}
+          onChange={(v) => change({ targetScore: v })}
+        />
         <NumberSetting label="制圧(%)" value={settings.conquestPct} disabled={!isHost} min={50} max={100} step={5} onChange={(v) => change({ conquestPct: v })} />
         <NumberSetting label="洞窟の脱出値" value={settings.caveThreshold} disabled={!isHost} min={3} max={60} onChange={(v) => change({ caveThreshold: v })} />
         <NumberSetting label="フラッグ勝利(0=なし)" value={settings.flagWin} disabled={!isHost} min={0} max={9} onChange={(v) => change({ flagWin: v })} />

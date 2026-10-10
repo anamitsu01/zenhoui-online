@@ -97,7 +97,9 @@ for (let g = 0; g < games; g++) {
   let room = createRoom("p0", "P0");
   for (let i = 1; i < n; i++) room = addPlayer(room, `p${i}`, `P${i}`);
   const ffa = n <= 5 && Math.random() < 0.5;
-  room = updateSettings(room, "p0", { mode: ffa ? "ffa" : "teams", targetScore: 10 });
+  const area = Math.random() < 0.4;
+  room = updateSettings(room, "p0", { mode: ffa ? "ffa" : "teams", scoring: area ? "area" : "lead" });
+  room = updateSettings(room, "p0", { targetScore: area ? 400 : 10 });
   room = startGame(room, "p0");
   let actions = 0;
   while (room.phase === "playing") {
@@ -107,7 +109,7 @@ for (let g = 0; g < games; g++) {
     if (++actions > 20000) throw new Error("game did not end");
   }
   totalTurns += room.set;
-  const key = `${room.settings.mode}/${room.winReason}`;
+  const key = `${room.settings.mode}/${room.settings.scoring}/${room.winReason}`;
   reasons[key] = (reasons[key] ?? 0) + 1;
 }
 console.log(`${games} games OK in ${Date.now() - t0}ms, avg ${(totalTurns / games).toFixed(1)} sets, shared resting cells: ${sharedEnds}, mid-move bridges: ${midMoveBridges}`, reasons);

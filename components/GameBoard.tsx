@@ -358,7 +358,7 @@ function ScoreStrip({ room }: { room: RoomState }) {
           </span>
         </span>
         <span className="text-xs text-white/45">
-          目標 {settings.targetScore}点 ・ 制圧 {settings.conquestPct}%({need}マス)
+          {settings.scoring === "area" ? "陣地点" : "優勢点"} 目標 {settings.targetScore}点 ・ 制圧 {settings.conquestPct}%({need}マス)
           {settings.flagWin > 0 && ` ・ フラッグ${settings.flagWin}本(全${room.flagTotal}本)`}
         </span>
       </div>
@@ -941,9 +941,11 @@ function eventText(room: RoomState, e: PublicEvent): string {
     case "enclose":
       return `${name(e.playerId)}が${e.count}マスを囲った`;
     case "score":
-      return e.leader < 0
-        ? `第${e.set}セット結果: 同数のため得点なし`
-        : `第${e.set}セット結果: ${teamLabel(room, e.leader)} +${e.gained[e.leader]}点`;
+      return room.settings.scoring === "area"
+        ? `第${e.set}セット結果: ${e.gained.map((g, c) => `${teamLabel(room, c)} +${g}`).join(" / ")}`
+        : e.leader < 0
+          ? `第${e.set}セット結果: 同数のため得点なし`
+          : `第${e.set}セット結果: ${teamLabel(room, e.leader)} +${e.gained[e.leader]}点`;
     case "skip":
       return `${name(e.playerId)}の手番を飛ばした`;
     case "flagReach":
@@ -1455,7 +1457,15 @@ function SetResultBanner({ room }: { room: RoomState }) {
         style={{ borderColor: hex }}
       >
         <p className="text-xs tracking-[0.3em] text-white/50">第{visible.set}セット 結果</p>
-        {visible.leader >= 0 ? (
+        {room.settings.scoring === "area" ? (
+          <p className="flex flex-wrap justify-center gap-x-4 text-xl font-black">
+            {visible.gained.map((g, c) => (
+              <span key={c} style={{ color: colorHex(room.settings.mode, c) }}>
+                {teamLabel(room, c)} +{g}点
+              </span>
+            ))}
+          </p>
+        ) : visible.leader >= 0 ? (
           <p className="text-2xl font-black" style={{ color: hex }}>
             {teamLabel(room, visible.leader)} +{visible.gained[visible.leader]}点
           </p>
@@ -1463,7 +1473,9 @@ function SetResultBanner({ room }: { room: RoomState }) {
           <p className="text-2xl font-black text-white/70">同数 — 得点なし</p>
         )}
         <p className="mt-1 text-xs text-white/55">
-          {visible.counts.map((n, c) => `${teamLabel(room, c)} ${n}マス`).join(" ・ ")}
+          {room.settings.scoring === "area"
+            ? `合計: ${room.scores.map((s, c) => `${teamLabel(room, c)} ${s}`).join(" ・ ")} / ${room.settings.targetScore}`
+            : visible.counts.map((n, c) => `${teamLabel(room, c)} ${n}マス`).join(" ・ ")}
 
         </p>
       </div>

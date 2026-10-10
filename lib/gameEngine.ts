@@ -16,6 +16,7 @@ import {
   Player,
   RoomSettings,
   RoomState,
+  SCORING,
   Terrain,
   TEST_ROOM_CODE,
   TurnState,
@@ -140,7 +141,7 @@ export function createRoom(hostId: string, hostName: string, isTest = false): Ro
     isTest,
     phase: "lobby",
     players: [newPlayer(hostId, hostName, 0, true)],
-    settings: { mode: "teams", targetScore: 15, conquestPct: 75, caveThreshold: 20, boardSize: 0, flagWin: 5 },
+    settings: { mode: "teams", scoring: "lead", targetScore: SCORING.lead.defaultTarget, conquestPct: 75, caveThreshold: 20, boardSize: 0, flagWin: 5 },
     colorCount: 2,
     size: 0,
     cells: [],
@@ -199,7 +200,12 @@ export function updateSettings(room: RoomState, requesterId: string, settings: P
   if (settings.mode === "teams" || settings.mode === "ffa") next.mode = settings.mode;
   const clampInt = (v: unknown, lo: number, hi: number) =>
     typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : undefined;
-  next.targetScore = clampInt(settings.targetScore, 3, 100) ?? next.targetScore;
+  if ((settings.scoring === "lead" || settings.scoring === "area") && settings.scoring !== next.scoring) {
+    // Switching the scoring style resets the target to that style's default.
+    next.scoring = settings.scoring;
+    next.targetScore = SCORING[next.scoring].defaultTarget;
+  }
+  next.targetScore = clampInt(settings.targetScore, SCORING[next.scoring].min, SCORING[next.scoring].max) ?? next.targetScore;
   next.conquestPct = clampInt(settings.conquestPct, 50, 100) ?? next.conquestPct;
   next.caveThreshold = clampInt(settings.caveThreshold, 3, 60) ?? next.caveThreshold;
   next.flagWin = clampInt(settings.flagWin, 0, 9) ?? next.flagWin;
@@ -735,8 +741,9 @@ function scoreSet(room: RoomState) {
   room.cells.forEach((cell) => {
     if (cell.f === "flag" && cell.o >= 0) flags[cell.o]++;
   });
-  const gained = Array(room.colorCount).fill(0);
-  if (leader >= 0) gained[leader] = 1;
+  // "area": everyone scores their cell count. "lead": only the sole leader scores, 1 point.
+  const gained: number[] = room.settings.scoring === "area" ? counts.slice() : Array(room.colorCount).fill(0);
+  if (room.settings.scoring !== "area" && leader >= 0) gained[leader] = 1;
   room.scores = room.scores.map((s, c) => s + gained[c]);
   room.lastScoring = { set: room.set, counts, leader, flags, gained };
   room.log.push({ type: "score", set: room.set, counts, leader, flags, gained });
@@ -747,8 +754,10 @@ function endTurn(room: RoomState) {
   room.turnIndex++;
   if (room.turnIndex >= room.order.length) {
     scoreSet(room);
+    // First past the target wins. If several cross it together the higher score
+    // wins; an exact tie plays on until someone is ahead.
     const top = Math.max(...room.scores);
-    if (top >= room.settings.targetScore) {
+    if (top >= room.settings.targetScore && room.scores.filter((s) => s === top).length === 1) {
       finish(room, room.scores.indexOf(top), "score");
       return;
     }
